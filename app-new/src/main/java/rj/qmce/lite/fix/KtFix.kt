@@ -563,6 +563,13 @@ object KtFix {
     }
 
     @JvmStatic
+    fun plus(map: Map<Any?, Any?>, pair: Pair<Any?, Any?>): Map<Any?, Any?> {
+        val result = java.util.LinkedHashMap(map)
+        result[pair.first] = pair.second
+        return result
+    }
+
+    @JvmStatic
     fun toMap(iterable: Iterable<Pair<Any?, Any?>>): Map<Any?, Any?> {
         val map = java.util.LinkedHashMap<Any?, Any?>()
         for (p in iterable) map[p.first] = p.second
