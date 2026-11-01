@@ -21,6 +21,7 @@ Qhorium is an Android Wear OS messaging client implemented in Kotlin using Wear 
   - `rj/qmce/lite/notify`: Notification management and Wear complications
 - `app/src/main/res`: Android Wear OS resources and adaptive icons
 - `app/libs`: Precompiled SDK dependencies
+- `Design/`: Vector design assets and brand resources
 
 ## Building from Source
 
