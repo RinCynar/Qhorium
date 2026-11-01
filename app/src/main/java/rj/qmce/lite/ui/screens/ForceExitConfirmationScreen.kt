@@ -9,8 +9,8 @@ fun ForceExitConfirmationScreen(
     onBack: () -> Unit,
 ) {
     QmceConfirmScreen(
-        title = "立即结束 QMCE 进程？",
-        detail = "登录状态不会被清除。下次打开 QMCE 时仍会使用当前账号。",
+        title = "立即结束 Qhorium 进程？",
+        detail = "登录状态不会被清除。下次打开 Qhorium 时仍会使用当前账号。",
         confirmLabel = "强制退出",
         destructive = true,
         onConfirm = onConfirm,

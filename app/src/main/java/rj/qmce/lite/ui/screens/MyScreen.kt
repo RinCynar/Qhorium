@@ -182,7 +182,7 @@ fun MyScreen(
                     MyActionRow(
                         icon = Icons.Default.PowerSettingsNew,
                         title = "强制退出",
-                        subtitle = "立即终止 QMCE，不清理登录数据",
+                        subtitle = "立即终止 Qhorium，不清理登录数据",
                         onClick = {
                             OfficialReportBridge.reportElementClick(
                                 target = reportTarget,

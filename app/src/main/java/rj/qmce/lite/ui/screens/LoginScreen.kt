@@ -28,8 +28,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,10 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -65,7 +63,6 @@ import androidx.wear.compose.material3.EdgeButtonSize
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ProgressIndicatorDefaults
-import androidx.wear.compose.material3.RadioButton
 import rj.qmce.lite.ui.wear.QmceScreenScaffold
 import androidx.wear.compose.material3.SplitCheckboxButton
 import androidx.wear.compose.material3.SurfaceTransformation
@@ -76,28 +73,19 @@ import com.tencent.qphone.base.remote.SimpleAccount
 import rj.qmce.lite.R
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
-import rj.qmce.lite.ui.settingsVm
 import rj.qmce.lite.ui.theme.LocalQmceAdaptive
 import rj.qmce.lite.viewmodel.AuthViewModel
 
 private enum class LoginGuideStep {
     Welcome,
-    ScreenType,
     Qr,
 }
 
 private val LoginGuideStep.officialPageId: String?
     get() = when (this) {
         LoginGuideStep.Welcome -> OfficialReportBridge.PageIds.WELCOME
-        LoginGuideStep.ScreenType -> null
         LoginGuideStep.Qr -> OfficialReportBridge.PageIds.LOGIN
     }
-
-private enum class ScreenType(val title: String, val detail: String, val selectable: Boolean) {
-    Auto("自动检测", "跟随设备", true),
-    Round("圆形屏幕", "标准适配", true),
-    Square("方形屏幕", "未设计", false),
-}
 
 @Composable
 fun LoginScreen(
@@ -116,7 +104,6 @@ fun LoginScreen(
     var step by remember {
         mutableStateOf(if (startAtQr) LoginGuideStep.Qr else LoginGuideStep.Welcome)
     }
-    var screenType by remember { mutableStateOf(ScreenType.Auto) }
     var showErrorDetail by remember { mutableStateOf(false) }
     var userAgreement by remember { mutableStateOf(false) }
     var usageAgreement by remember { mutableStateOf(false) }
@@ -148,28 +135,10 @@ fun LoginScreen(
 
     when (step) {
         LoginGuideStep.Welcome -> WelcomeGuide(
-            onContinue = { step = LoginGuideStep.ScreenType },
-        )
-
-        LoginGuideStep.ScreenType -> ScreenTypeGuide(
-            selected = screenType,
-            onSelected = { type ->
-                if (type.selectable) screenType = type
-            },
             onContinue = {
-                val effective = if (screenType.selectable) screenType else ScreenType.Auto
-                when (effective) {
-                    ScreenType.Auto -> settingsVm.setAutoScale(true)
-                    ScreenType.Round -> {
-                        settingsVm.setAutoScale(false)
-                        settingsVm.setManualScale(1.50f)
-                    }
-                    ScreenType.Square -> settingsVm.setAutoScale(true)
-                }
                 step = LoginGuideStep.Qr
                 vm.fetchQrCode()
             },
-            onBack = { step = LoginGuideStep.Welcome },
         )
 
         LoginGuideStep.Qr -> {
@@ -200,7 +169,7 @@ fun LoginScreen(
                     onRetry = { vm.fetchQrCode() },
                     onBack = {
                         vm.reset()
-                        step = LoginGuideStep.ScreenType
+                        step = LoginGuideStep.Welcome
                     },
                 )
             }
@@ -212,7 +181,6 @@ fun LoginScreen(
 private fun WelcomeGuide(
     onContinue: () -> Unit,
 ) {
-    val transformationSpec = rememberTransformationSpec()
     val scheme = MaterialTheme.colorScheme
     GuideScrollColumn(
         edgeButton = {
@@ -257,13 +225,6 @@ private fun WelcomeGuide(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .transformedHeight(this, transformationSpec)
-                    .graphicsLayer {
-                        with(SurfaceTransformation(transformationSpec)) {
-                            applyContainerTransformation()
-                            applyContentTransformation()
-                        }
-                    }
                     .padding(horizontal = 12.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -274,82 +235,21 @@ private fun WelcomeGuide(
                     color = scheme.onBackground,
                 )
                 Spacer(Modifier.height(16.dp))
-                QQLogo(76.dp)
+                QhoriumLogo(76.dp)
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "QMCE",
+                    "Qhorium",
                     style = MaterialTheme.typography.titleMedium,
                     color = scheme.onSurface,
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "QQ Max Compose Edition",
+                    "Wear OS Edition",
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScreenTypeGuide(
-    selected: ScreenType,
-    onSelected: (ScreenType) -> Unit,
-    onContinue: () -> Unit,
-    onBack: () -> Unit,
-) {
-    BackHandler(onBack = onBack)
-    val transformationSpec = rememberTransformationSpec()
-    GuideScrollColumn(
-        edgeButton = {
-            EdgeButton(
-                onClick = onContinue,
-                modifier = Modifier.fillMaxWidth(),
-                buttonSize = EdgeButtonSize.Large,
-                enabled = selected.selectable,
-            ) { Text("下一步") }
-        },
-    ) {
-        item(key = "title") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .transformedHeight(this, transformationSpec)
-                    .graphicsLayer {
-                        with(SurfaceTransformation(transformationSpec)) {
-                            applyContainerTransformation()
-                            applyContentTransformation()
-                        }
-                    }
-                    .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    "请选择屏幕适配类型",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-        ScreenType.entries.forEach { type ->
-            item(key = "type-${type.name}") {
-                Box(
-                    Modifier
-                        .transformedHeight(this, transformationSpec)
-                        .padding(vertical = 4.dp),
-                ) {
-                    ScreenTypeOption(
-                        type = type,
-                        selected = selected == type,
-                        onSelected = onSelected,
-                        modifier = Modifier,
-                        transformation = SurfaceTransformation(transformationSpec),
-                    )
-                }
             }
         }
     }
@@ -373,7 +273,6 @@ private fun QrLoginGuide(
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
-    val transformationSpec = rememberTransformationSpec()
     val showConfirm = uiState is AuthViewModel.LoginUiState.AwaitingAgreement
     val showLoginError = uiState is AuthViewModel.LoginUiState.Error
     val showExpired = uiState is AuthViewModel.LoginUiState.Expired
@@ -449,13 +348,6 @@ private fun QrLoginGuide(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .transformedHeight(this, transformationSpec)
-                    .graphicsLayer {
-                        with(SurfaceTransformation(transformationSpec)) {
-                            applyContainerTransformation()
-                            applyContentTransformation()
-                        }
-                    }
                     .padding(horizontal = 2.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -506,7 +398,7 @@ private fun QrCodeContent(
     )
     Spacer(Modifier.height(8.dp))
     Text(
-        "登陆你的QQ账号",
+        "登录 QQ 账号",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
@@ -520,13 +412,13 @@ private fun QrCodeContent(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            "请使用新版手机QQ扫码",
+            "请使用手机 QQ 扫码",
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurface,
             textAlign = TextAlign.Center,
         )
         Text(
-            "进行登陆",
+            "扫码登录",
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurface,
             textAlign = TextAlign.Center,
@@ -581,7 +473,7 @@ private fun QrCodeContent(
         },
     ) {
         Text(
-            "刷新登陆二维码",
+            "刷新登录二维码",
             style = MaterialTheme.typography.bodySmall,
             color = scheme.onSurface,
         )
@@ -633,7 +525,7 @@ private fun LoginLoadingContent(
         is AuthViewModel.LoginUiState.Binding -> "正在完成登录"
         else -> statusText.ifBlank { "请稍候" }
     }
-    QQLogo(56.dp)
+    QhoriumLogo(56.dp)
     Spacer(Modifier.height(16.dp))
     CircularProgressIndicator(
         modifier = Modifier.size(48.dp),
@@ -701,10 +593,10 @@ private fun LoginConfirmContent(
     val scheme = MaterialTheme.colorScheme
     LoginGuideHeaderIcon()
     Spacer(Modifier.height(12.dp))
-    QQLogo(72.dp)
+    QhoriumLogo(72.dp)
     Spacer(Modifier.height(10.dp))
     Text(
-        "登陆用户名",
+        "登录用户名",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
@@ -761,13 +653,6 @@ private fun LoginErrorDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .transformedHeight(this, transformationSpec)
-                    .graphicsLayer {
-                        with(SurfaceTransformation(transformationSpec)) {
-                            applyContainerTransformation()
-                            applyContentTransformation()
-                        }
-                    }
                     .background(scheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
                     .padding(horizontal = 14.dp, vertical = 18.dp),
                 contentAlignment = Alignment.Center,
@@ -784,8 +669,8 @@ private fun LoginErrorDetailScreen(
         item(key = "error-relogin") {
             GuideActionButton(
                 icon = Icons.Default.Refresh,
-                title = "重新登陆",
-                subtitle = "返回登陆界面",
+                title = "重新登录",
+                subtitle = "返回登录界面",
                 onClick = onRelogin,
                 modifier = Modifier
                     .transformedHeight(this, transformationSpec)
@@ -802,7 +687,7 @@ private fun LoginErrorDetailScreen(
                 onClick = {
                     val clipboard =
                         context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("qmce-login-error", detail))
+                    clipboard.setPrimaryClip(ClipData.newPlainText("qhorium-login-error", detail))
                     Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier
@@ -854,100 +739,6 @@ private fun GuideActionButton(
 }
 
 @Composable
-private fun ScreenTypeOption(
-    type: ScreenType,
-    selected: Boolean,
-    onSelected: (ScreenType) -> Unit,
-    modifier: Modifier,
-    transformation: SurfaceTransformation,
-) {
-    val enabled = type.selectable
-    RadioButton(
-        selected = selected && enabled,
-        onSelect = { if (enabled) onSelected(type) },
-        enabled = enabled,
-        modifier = modifier.fillMaxWidth(),
-        transformation = transformation,
-        icon = { ScreenPreview(type, selected && enabled) },
-        secondaryLabel = {
-            Text(
-                type.detail,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-            )
-        },
-        label = {
-            Text(
-                type.title,
-                fontWeight = FontWeight.Medium,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-            )
-        },
-    )
-}
-
-@Composable
-private fun ScreenPreview(type: ScreenType, selected: Boolean) {
-    val color =
-        if (selected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onSurfaceVariant
-    when (type) {
-        ScreenType.Auto -> {
-            Icon(
-                imageVector = Icons.Default.Sync,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = color,
-            )
-        }
-        ScreenType.Round -> {
-            Icon(
-                imageVector = Icons.Default.Watch,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = color,
-            )
-        }
-        ScreenType.Square -> {
-            SquareWatchIcon(color = color)
-        }
-    }
-}
-
-@Composable
-private fun SquareWatchIcon(color: Color) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.size(width = 22.dp, height = 30.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .width(10.dp)
-                .height(3.dp)
-                .background(color, RoundedCornerShape(1.dp)),
-        )
-        Box(
-            modifier = Modifier
-                .size(width = 18.dp, height = 22.dp)
-                .border(2.dp, color, RoundedCornerShape(4.dp)),
-        )
-        Box(
-            modifier = Modifier
-                .width(10.dp)
-                .height(3.dp)
-                .background(color, RoundedCornerShape(1.dp)),
-        )
-    }
-}
-
-@Composable
 private fun GuideSurface(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
@@ -992,19 +783,19 @@ private fun GuideScrollColumn(
 }
 
 @Composable
-private fun QQLogo(size: Dp) {
+private fun QhoriumLogo(size: Dp) {
     Box(
         modifier = Modifier
             .size(size)
             .background(
-                androidx.compose.ui.res.colorResource(R.color.ic_launcher_qq_background),
+                colorResource(R.color.ic_launcher_qhr_background),
                 CircleShape,
             ),
         contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_launcher_qq_splash),
-            contentDescription = "QQ",
+            painter = painterResource(R.drawable.ic_launcher_qhr_splash),
+            contentDescription = "Qhorium",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit,
         )

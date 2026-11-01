@@ -337,9 +337,13 @@ private fun WearApp() {
         return
     }
 
-    val chatDetailVm: ChatDetailViewModel = viewModel()
     var currentNavRoute by remember { mutableStateOf<String?>(null) }
-    val unreadBadgeText by chatDetailVm.unreadBadgeText.collectAsState()
+    val unreadBadgeText = if (isLoggedIn) {
+        val chatDetailVm: ChatDetailViewModel = viewModel()
+        chatDetailVm.unreadBadgeText.collectAsState().value
+    } else {
+        null
+    }
 
     LaunchedEffect(isLoggedIn) {
         if (!isLoggedIn) currentNavRoute = null
@@ -432,6 +436,7 @@ private fun WearApp() {
         ) {
             if (isLoggedIn) {
                 val navController = checkNotNull(appNavController)
+                val chatDetailVm: ChatDetailViewModel = viewModel()
                 val chatSettingsVm: ChatSettingsViewModel = viewModel()
                 val groupInfoVm: GroupInfoViewModel = viewModel()
                 val groupManagementVm: GroupManagementViewModel = viewModel()
@@ -1416,24 +1421,24 @@ private fun SplashScreen(restoringLogin: Boolean = false) {
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(colorResource(R.color.ic_launcher_qq_background)),
+                    .background(colorResource(R.color.ic_launcher_qhr_background)),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(R.drawable.ic_launcher_qq_splash),
-                    contentDescription = "QQ",
+                    painter = painterResource(R.drawable.ic_launcher_qhr_splash),
+                    contentDescription = "Qhorium",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit,
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
             androidx.wear.compose.material3.Text(
-                text = "QMCE",
+                text = "Qhorium",
                 style = androidx.wear.compose.material3.MaterialTheme.typography.titleSmall,
                 color = scheme.onBackground,
             )
             androidx.wear.compose.material3.Text(
-                text = "QQ Max Compose Edition",
+                text = "Wear OS Edition",
                 style = androidx.wear.compose.material3.MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
             )

@@ -59,6 +59,9 @@ object AgentSubsystem {
             rj.qmce.lite.QmceApplication.ensureRuntime()?.currentUin.orEmpty()
         }.getOrDefault("").ifBlank { "default" }
         currentUin = uin
+        if (!initialized) {
+            ensure(context)
+        }
         _active.value = initialized && enabled
         if (!enabled) return
         AgentToolRegistrar.ensure(context.applicationContext)
@@ -90,6 +93,9 @@ object AgentSubsystem {
     fun setEnabled(context: Context, enabled: Boolean) {
         appContext = context.applicationContext
         this.enabled = enabled
+        if (!initialized && enabled) {
+            ensure(context)
+        }
         _active.value = initialized && enabled
         if (enabled) {
             AgentToolRegistrar.ensure(context.applicationContext)

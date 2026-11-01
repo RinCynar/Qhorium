@@ -92,7 +92,7 @@ fun buildQmceAdaptive(
     edgeSafeScale: Float = 1.0f,
 ): QmceAdaptive {
     val shortestDp = configuration.smallestScreenWidthDp.coerceAtLeast(1)
-    val isRound = configuration.isScreenRound
+    val isRound = true // Wear OS round screen globally locked
     val densityScale = if (autoScale) {
         computeAutoDensityScale(shortestDp)
     } else {

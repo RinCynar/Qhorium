@@ -2484,7 +2484,7 @@ private fun CallRecordConfirmationScreen(
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "将使用 QMCE 的通话服务",
+                text = "将使用 Qhorium 的通话服务",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
