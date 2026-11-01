@@ -1,32 +1,54 @@
-# QMCE (LX)
+# Qhorium
 
-## What's this?
-QMCE 是基于表 Q 内核及部分包装代码的一个 QQ 手表实现，主要使用 Kotlin 开发， UI 使用 Wear Compose 完成。
-UI 主要适配圆表，方表没做~~因为太懒~~
+Qhorium is an Android Wear OS messaging client implemented in Kotlin using Wear Material 3 Jetpack Compose, designed for circular Wear OS displays.
 
-目前项目还在开发中，别急 ~~好开发都被隔壁挖走了能快就见鬼了~~
+## Overview
 
-LX 指 Lite-X，相对于较大的 Legacy 分支而言采用 dex2jar 提取而非 ApkMixin Hook；相对于较小的 Lite 而言采用了官方的 MSF 组件和 OICQ 组件。
+- **Platform**: Wear OS (API 23+)
+- **Target Display**: Circular smartwatches
+- **UI Framework**: Wear Compose / Wear Material 3
+- **Language**: Kotlin 2.x / Java 17
 
-## Where to get?
-加入 QQ 群 ~~1082439478~~ ~~806552762~~ 673076781 ，入群看消息和公告
+## Project Structure
 
-## Developments.
+- `app/src/main/java/`: Main application source code
+  - `rj/qmce/lite/ui`: Wear Material 3 Jetpack Compose UI components and screens
+  - `rj/qmce/lite/viewmodel`: ViewModels and UI state management
+  - `rj/qmce/lite/data`: Repositories, models, media caches, and session handling
+  - `rj/qmce/lite/kernel`: Kernel bridges and IPC handlers
+  - `rj/qmce/lite/fix`: Runtime compatibility and platform patches
+  - `rj/qmce/lite/agent`: Optional onboard LLM agent integration
+  - `rj/qmce/lite/notify`: Notification management and Wear complications
+- `app/src/main/res`: Android Wear OS resources and adaptive icons
+- `app/libs`: Precompiled SDK dependencies
 
-### Build?
-很简单 先克隆然后跑`./gradlew assemble`即可
+## Building from Source
 
-### Notes.
- - `moye.*` 现在是 stubs ，没有修改必要，懒得 patch 了
- - 空白接口类基本上是防止 IDEA 类 IDE 炸错误的，不影响运行
- - `rj.qmce.lite.fix` 下面基本上都是修复/反检测，能跑你就别动，动了会炸
- - 别删 proguard 规则， `qq-sdk.jar` `qav-runtime.jar` 里部分代码引用会引用 QMCE 代码里的东西，比如 `rj.qmce.lite.Flag`
+### Prerequisites
 
-## Join us.
-欢迎开发加入！ QMCE 正是~~缺 token 的时候~~ （划掉）需要人的时候
-加群联系即可
+- JDK 17
+- Android SDK (Platforms 36/37, Build-Tools 37.0.0)
 
-## Notes about contribution.
- - 不接受无理由低质量 PR
- - 不接受引入非 BSD 协议兼容的库
- - 不接受傻逼提供的代码
+### Build Commands
+
+```bash
+# Debug build (generates debug APK under app/build/outputs/apk/debug/)
+./gradlew :app:assembleDebug
+
+# Release build (minified)
+./gradlew :app:assembleRelease
+
+# Clean Kotlin compilation diagnostics
+./gradlew :app:compileDebugKotlin --no-daemon -Pkotlin.incremental=false
+```
+
+## Engineering & Development Notes
+
+- **Runtime Compatibility**: Do not modify stub packages (`moye.*`) or runtime patch packages (`rj.qmce.lite.fix`) unless required for platform compatibility.
+- **ProGuard**: Required ProGuard rules in `app/proguard-rules.pro` must be preserved as precompiled SDK classes reference application classes via reflection.
+- **Display Target**: The UI is optimized for circular displays (`isRound = true`). Screen components should adhere to safe circular padding and bottom composer clearance.
+
+## License & Contribution
+
+- Contributions must maintain code quality, existing formatting (4-space indentation), and objective documentation.
+- Commit messages must be concise, descriptive, and in English.
