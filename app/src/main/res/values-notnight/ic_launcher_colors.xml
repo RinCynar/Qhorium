@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_qhr_background">#FF1A1C1E</color>
+    <color name="ic_launcher_qhr_foreground">#FFDDE2EA</color>
+    <color name="ic_launcher_qq_background">#FF1A1C1E</color>
+    <color name="ic_launcher_qq_foreground">#FFDDE2EA</color>
+</resources>

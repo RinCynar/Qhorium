@@ -21,16 +21,26 @@ app/decompiled/
 work/
 # Gradle/Kotlin JVM temp (also under work/; kept explicit for clarity)
 work/.tmp/
-/app-new/build/
-/app/build
-/app/dist
-/app
+/app/build/
+/app/dist/
 /.kotlin
-/app-new/libs/qq-sdk.jar.bak*
+/app/libs/qq-sdk.jar.bak*
 .log
 /tools
-# AI
+# AI & Collaboration
 .claude
+AGENTS.md
+TODOS.md
+LOGS.md
+ASSISTANT.md
+QMCE_AGENTS.md
+
+# Secrets, Keystores & Environment
+.env
+.env.*
+*.jks
+*.keystore
+
 # Local Gradle cache (do not commit)
 .gradle_home/
 .gradle-home/

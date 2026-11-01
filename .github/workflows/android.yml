@@ -61,27 +61,27 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew :app-new:assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Build release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.buildRelease }}
-        run: ./gradlew :app-new:assembleRelease --stacktrace
+        run: ./gradlew :app:assembleRelease --stacktrace
 
       # NOTE: the APK embeds Tencent's proprietary watch-QQ runtime (see
       # README disclaimer) — keep artifact retention short.
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: qmce-debug
-          path: app-new/build/outputs/apk/debug/*.apk
+          name: qhorium-debug
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
 
       - name: Upload release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.buildRelease }}
         uses: actions/upload-artifact@v4
         with:
-          name: qmce-release
-          path: app-new/build/outputs/apk/release/*.apk
+          name: qhorium-release
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 7
 
       - name: Upload build reports on failure
@@ -90,7 +90,7 @@ jobs:
         with:
           name: build-reports
           path: |
-            app-new/build/reports/
+            app/build/reports/
             build/reports/
           retention-days: 7
           if-no-files-found: ignore

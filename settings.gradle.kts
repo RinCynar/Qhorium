@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "qmce-litex"
-include(":app-new")
+rootProject.name = "qhorium"
+include(":app")
