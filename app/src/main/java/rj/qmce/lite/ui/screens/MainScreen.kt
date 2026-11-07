@@ -115,22 +115,12 @@ fun MainScreen(
         }
     }
 
-    val indicatorPagerState = rememberPagerState(
-        initialPage = pagerState.currentPage,
-        pageCount = { 4 },
-    )
-    LaunchedEffect(pagerState.currentPage) {
-        if (indicatorPagerState.currentPage != pagerState.currentPage) {
-            indicatorPagerState.scrollToPage(pagerState.currentPage)
-        }
-    }
-
     HorizontalPagerScaffold(
         pagerState = pagerState,
         pageIndicator = if (showPageIndicator) {
             {
                 HorizontalPageIndicator(
-                    pagerState = indicatorPagerState,
+                    pagerState = pagerState,
                 )
             }
         } else null,

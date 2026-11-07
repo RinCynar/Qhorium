@@ -23,8 +23,8 @@ android {
         applicationId = "top.rincynar.qhr"
         minSdk = 23
         targetSdk = 37
-        versionCode = 37
-        versionName = "0.6.4-fix7"
+        versionCode = 41
+        versionName = "0.6.4-fix11"
         multiDexEnabled = true
         ndk {
             //noinspection ChromeOsAbiSupport
