@@ -255,11 +255,16 @@ private fun WearApp() {
         }
     }
 
+    var isRestoringLogin by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         val rt = withContext(Dispatchers.IO) {
-            val r = QmceApplication.ensureRuntime()
             val saved = LoginPrefs.loadAccount(context)
             if (saved != null) {
+                withContext(Dispatchers.Main) {
+                    isRestoringLogin = true
+                }
+                val r = QmceApplication.ensureRuntime()
                 val uin = saved.uin
                 QmceApplication.beginLoginTransition()
                 val result = KernelBridge.bindLoggedInAccount(uin, saved)
@@ -267,28 +272,18 @@ private fun WearApp() {
                     if (result == "kernel-not-ready") {
                         Log.w(
                             "QMCE",
-                            "bind: account ok but kernel session not ready; awaiting services",
-                        )
-                    }
-                    var ready = KernelBridge.awaitCoreServices(
-                        timeoutMillis = 30_000,
-                        runtimeOverride = r,
-                    )
-                    if (!ready) {
-                        ready = KernelBridge.retryCoreServices(
-                            timeoutMillis = 15_000,
-                            runtimeOverride = r,
+                            "bind: account ok but kernel session not ready; warming services in background",
                         )
                     }
                     withContext(Dispatchers.Main) {
-                        val prefsStillValid = LoginPrefs.loadAccount(context) != null
-                        val entered = prefsStillValid && QmceApplication.markLoginEstablished()
+                        val entered = QmceApplication.markLoginEstablished()
                         if (entered) {
                             loggedUin = uin
                             isLoggedIn = true
                             preferLoginQr = false
                             runtime = QmceApplication.ensureRuntime() ?: r
-                            Log.d("QMCE", "ui: cold restore enter uin=$uin coreReady=$ready")
+                            ready = true
+                            Log.d("QMCE", "ui: cold restore enter uin=$uin fast-path")
                         } else {
                             loggedUin = ""
                             isLoggedIn = false
@@ -296,20 +291,38 @@ private fun WearApp() {
                             loginSessionKey += 1
                             loginPageId = OfficialReportBridge.PageIds.LOGIN
                             QmceApplication.endLoginTransition()
+                            ready = true
                             Log.w(
                                 "QMCE",
-                                "ui: cold restore aborted " +
-                                    "(prefs=$prefsStillValid forced=${QmceApplication.isForcedOfflineLatched()})",
+                                "ui: cold restore aborted (forced=${QmceApplication.isForcedOfflineLatched()})",
                             )
                         }
                     }
+                    // Warm up core services asynchronously in background without blocking splash dismiss
+                    KernelBridge.awaitCoreServices(
+                        timeoutMillis = 15_000,
+                        runtimeOverride = r,
+                    )
                 } else {
                     Log.e("QMCE", "bindLoggedInAccount failed: $result")
                     QmceApplication.endLoginTransition()
-                    withContext(Dispatchers.Main) { LoginPrefs.clear(context) }
+                    LoginPrefs.clear(context)
+                    withContext(Dispatchers.Main) {
+                        isLoggedIn = false
+                        preferLoginQr = true
+                        ready = true
+                    }
                 }
+                r
+            } else {
+                val r = QmceApplication.ensureRuntime()
+                withContext(Dispatchers.Main) {
+                    isLoggedIn = false
+                    preferLoginQr = true
+                    ready = true
+                }
+                r
             }
-            r
         }
         withContext(Dispatchers.Main) {
             if (runtime == null) {
@@ -329,7 +342,7 @@ private fun WearApp() {
         ) {
             OfficialReportPage(OfficialReportBridge.PageIds.SPLASH) {
                 SplashScreen(
-                    restoringLogin = LoginPrefs.loadAccount(context) != null,
+                    restoringLogin = isRestoringLogin,
                 )
             }
         }

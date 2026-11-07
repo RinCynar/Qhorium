@@ -9,13 +9,13 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
@@ -28,7 +28,6 @@ import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
-import androidx.wear.compose.material3.CompactButton
 import androidx.wear.compose.material3.Icon
 import rj.qmce.lite.ui.wear.QmceScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
@@ -73,9 +72,6 @@ fun ChatListScreen(
     val transformationSpec = rememberTransformationSpec()
     val latestContacts by rememberUpdatedState(contacts)
     val reportUid = runCatching { runtime?.currentUid.orEmpty() }.getOrDefault("")
-    val firstVisibleItemIndex =
-        listState.layoutInfo.visibleItems.firstOrNull()?.index ?: 0
-    val showScrollToTop = firstVisibleItemIndex > 0
 
     DisposableEffect(runtime) {
         val receiver = object : BroadcastReceiver() {
@@ -176,23 +172,7 @@ fun ChatListScreen(
                         state = listState,
                         contentPadding = contentPadding,
                     ) {
-                        if (showScrollToTop) {
-                            item(key = "scroll-to-top") {
-                                CompactButton(
-                                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                                    transformation = SurfaceTransformation(transformationSpec),
-                                    icon = {
-                                        Icon(
-                                            Icons.Default.ExpandLess,
-                                            contentDescription = "滚动到顶部",
-                                        )
-                                    },
-                                    label = { Text("回顶") },
-                                )
-                            }
-                        }
-                        item(key = "notification-bell") {
+                        item(key = "notification-bell", contentType = "header") {
                             Button(
                                 onClick = onOpenNotificationCenter,
                                 modifier = Modifier
@@ -217,18 +197,23 @@ fun ChatListScreen(
                             key = { contact ->
                                 "chat:${chatListExposureKey(contact) ?: contact.hashCode()}"
                             },
+                            contentType = { "chat_item" },
                         ) { contact ->
-                            ChatItem(
-                                contact = contact,
-                                reportParams = OfficialReportBridge.chatListItemElementParams(
+                            val exposureKey = remember(contact) { chatListExposureKey(contact) }
+                            val elementParams = remember(contact, uin, reportUid) {
+                                OfficialReportBridge.chatListItemElementParams(
                                     contact = contact,
                                     homeUin = uin,
                                     uid = reportUid,
-                                ),
-                                reuseIdentifier = chatListExposureKey(contact),
-                                onClick = { target ->
+                                )
+                            }
+                            ChatItem(
+                                contact = contact,
+                                reportParams = elementParams,
+                                reuseIdentifier = exposureKey,
+                                onClick = {
                                     OfficialReportBridge.reportChatListItemClick(
-                                        target = target,
+                                        target = null,
                                         contact = contact,
                                         homeUin = uin,
                                         uid = reportUid,

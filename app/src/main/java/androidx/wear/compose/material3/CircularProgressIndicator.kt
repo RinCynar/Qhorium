@@ -20,7 +20,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.focusable
@@ -173,56 +177,35 @@ public fun CircularProgressIndicator(
     strokeWidth: Dp = CircularProgressIndicatorDefaults.IndeterminateStrokeWidth,
     gapSize: Dp = CircularProgressIndicatorDefaults.calculateRecommendedGapSize(strokeWidth),
 ) {
-    val infiniteTransition = rememberInfiniteTransition()
-    // A global rotation that does a 1440 degrees rotation in 5 seconds.
-    val globalRotation =
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = CircularGlobalRotationDegreesTarget,
-            animationSpec = circularIndeterminateGlobalRotationAnimationSpec,
-        )
-
-    // An additional rotation that moves by 360 degrees in 1250ms and then rest for 1250ms.
-    val additionalRotation =
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 720f,
-            animationSpec = circularIndeterminateRotationAnimationSpec,
-        )
-
-    // Indicator progress animation that will be changing the progress up and down as the indicator
-    // rotates.
-    val progressAnimation =
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 0f,
-            animationSpec = circularIndeterminateProgressAnimationSpec,
-        )
+    val infiniteTransition = rememberInfiniteTransition(label = "cpi")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "rotation",
+    )
 
     Canvas(
         modifier.size(CircularProgressIndicatorDefaults.IndeterminateCircularIndicatorDiameter)
     ) {
-        val sweep = progressAnimation.value * 360f
-        val adjustedGapSize = gapSize + strokeWidth
-        val minSize = min(size.height, size.width)
-        val gapSizeSweep = (adjustedGapSize.value / (PI * minSize.toDp().value).toFloat()) * 360f
-
-        rotate(CircularRotationStartAngle + globalRotation.value + additionalRotation.value) {
-            drawIndicatorSegment(
-                startAngle = sweep,
-                sweep = 360f - sweep,
-                brush = colors.trackBrush,
-                strokeWidth = strokeWidth.toPx(),
-                gapSweep = min(sweep, gapSizeSweep),
-            )
-            drawIndicatorSegment(
-                startAngle = 0f,
-                sweep = sweep,
-                brush = colors.indicatorBrush,
-                strokeWidth = strokeWidth.toPx(),
-                gapSweep = gapSizeSweep,
-            )
-        }
+        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
+        // Background track circle
+        drawCircle(
+            brush = colors.trackBrush,
+            radius = (size.minDimension - strokeWidth.toPx()) / 2f,
+            style = stroke,
+        )
+        // Rotating 270-degree indicator arc
+        drawArc(
+            brush = colors.indicatorBrush,
+            startAngle = rotation,
+            sweepAngle = 270f,
+            useCenter = false,
+            style = stroke,
+        )
     }
 }
 

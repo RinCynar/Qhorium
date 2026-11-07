@@ -1,6 +1,5 @@
 package rj.qmce.lite.ui.components
 
-import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,10 +36,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import rj.qmce.lite.data.reporting.OfficialReportBridge
-import rj.qmce.lite.data.reporting.OfficialReportTargetBox
 
 private val UnreadBadgeShape = RoundedCornerShape(50)
+
+private val timeFormatToday = SimpleDateFormat("HH:mm", Locale.getDefault())
+private val timeFormatOther = SimpleDateFormat("MM/dd", Locale.getDefault())
 
 /** Recent-contact row for the chat list (Wear M3 Button). */
 @Composable
@@ -47,7 +48,7 @@ fun ChatItem(
     contact: RecentContactInfo,
     reportParams: Map<String, *> = emptyMap<String, Any?>(),
     reuseIdentifier: String? = null,
-    onClick: (View) -> Unit = {},
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     transformation: SurfaceTransformation? = null,
 ) {
@@ -57,133 +58,134 @@ fun ChatItem(
     val muted = contact.isMsgDisturb ||
         (contact.shieldFlag != 0L && contact.shieldFlag != 1L)
     val unreadCount = contact.unreadCnt.coerceAtLeast(0L)
-    val name = if (isGroup) {
-        contact.peerName?.takeIf { it.isNotBlank() } ?: contact.id ?: "未知群"
-    } else {
-        contact.remark?.takeIf { it.isNotBlank() }
-            ?: contact.peerName?.takeIf { it.isNotBlank() }
-            ?: contact.memberName?.takeIf { it.isNotBlank() }
-            ?: contact.id ?: "未知"
-    }
-    val abstract = contact.abstractContent
-        ?.joinToString("") { it.content ?: "" }
-        ?.takeIf { it.isNotBlank() }
-        .orEmpty()
-    val preview = buildMessagePreview(isGroup = isGroup, contact = contact, abstract = abstract)
-    val timeStr = formatTime(contact.msgTime)
-    val fallbackAvatarUrl = if (isGroup) {
-        "https://p.qlogo.cn/gh/${contact.id}/${contact.id}/100"
-    } else {
-        "https://q1.qlogo.cn/g?b=qq&nk=${contact.id}&s=100"
-    }
-    val avatarModel = contact.avatarPath
-        ?.removePrefix("file://")
-        ?.let(::File)
-        ?.takeIf(File::isFile)
-        ?: contact.avatarUrl?.takeIf { it.isNotBlank() }
-        ?: fallbackAvatarUrl
 
-    val key = reuseIdentifier ?: contact.contactId.takeIf { it > 0L }?.toString()
-        ?: contact.id ?: contact.peerUid ?: name
-    OfficialReportTargetBox(
-        key = "chat-item:$key",
-        modifier = modifier,
-        elementId = OfficialReportBridge.ElementIds.MESSAGE_ENTRY,
-        params = reportParams,
-        reuseIdentifier = reuseIdentifier ?: key,
-    ) { reportTarget ->
-        Button(
-            onClick = { onClick(reportTarget) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (pinned) {
-                    scheme.primaryContainer
-                } else {
-                    scheme.surfaceContainerHigh
-                },
-                contentColor = if (pinned) scheme.onPrimaryContainer else scheme.onSurface,
-                secondaryContentColor = if (pinned) {
-                    scheme.onPrimaryContainer.copy(alpha = 0.8f)
-                } else {
-                    scheme.onSurfaceVariant
-                },
-            ),
-            transformation = transformation,
-            contentPadding = ButtonDefaults.ButtonWithExtraLargeIconContentPadding,
-            icon = {
-                Box {
-                    AsyncImage(
-                        model = avatarModel,
-                        contentDescription = null,
+    val name = remember(contact.chatType, contact.peerName, contact.remark, contact.memberName, contact.id) {
+        if (isGroup) {
+            contact.peerName?.takeIf { it.isNotBlank() } ?: contact.id ?: "未知群"
+        } else {
+            contact.remark?.takeIf { it.isNotBlank() }
+                ?: contact.peerName?.takeIf { it.isNotBlank() }
+                ?: contact.memberName?.takeIf { it.isNotBlank() }
+                ?: contact.id ?: "未知"
+        }
+    }
+
+    val preview = remember(contact.chatType, contact.abstractContent, contact.sendRemarkName, contact.sendMemberName, contact.sendNickName, contact.senderUin) {
+        val abstract = contact.abstractContent
+            ?.joinToString("") { it.content ?: "" }
+            ?.takeIf { it.isNotBlank() }
+            .orEmpty()
+        buildMessagePreview(isGroup = isGroup, contact = contact, abstract = abstract)
+    }
+
+    val timeStr = remember(contact.msgTime) {
+        formatTime(contact.msgTime)
+    }
+
+    val avatarModel = remember(contact.chatType, contact.id, contact.avatarPath, contact.avatarUrl) {
+        val rawPath = contact.avatarPath
+        when {
+            !rawPath.isNullOrBlank() -> {
+                val clean = rawPath.removePrefix("file://")
+                File(clean)
+            }
+            !contact.avatarUrl.isNullOrBlank() -> contact.avatarUrl
+            isGroup -> "https://p.qlogo.cn/gh/${contact.id}/${contact.id}/100"
+            else -> "https://q1.qlogo.cn/g?b=qq&nk=${contact.id}&s=100"
+        }
+    }
+
+    Button(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (pinned) {
+                scheme.primaryContainer
+            } else {
+                scheme.surfaceContainerHigh
+            },
+            contentColor = if (pinned) scheme.onPrimaryContainer else scheme.onSurface,
+            secondaryContentColor = if (pinned) {
+                scheme.onPrimaryContainer.copy(alpha = 0.8f)
+            } else {
+                scheme.onSurfaceVariant
+            },
+        ),
+        transformation = transformation,
+        contentPadding = ButtonDefaults.ButtonWithExtraLargeIconContentPadding,
+        icon = {
+            Box {
+                AsyncImage(
+                    model = avatarModel,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(ButtonDefaults.ExtraLargeIconSize)
+                        .clip(CircleShape)
+                        .background(scheme.surfaceContainer, CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+                if (unreadCount > 0L) {
+                    val badgeText = if (unreadCount > 99L) "99+" else unreadCount.toString()
+                    val badgeBg = if (muted) scheme.outline else scheme.primary
+                    val badgeFg = if (muted) scheme.surfaceContainerHigh else scheme.onPrimary
+                    Box(
                         modifier = Modifier
-                            .size(ButtonDefaults.ExtraLargeIconSize)
-                            .clip(CircleShape)
-                            .background(scheme.surfaceContainer, CircleShape),
-                        contentScale = ContentScale.Crop,
-                    )
-                    if (unreadCount > 0L) {
-                        val badgeText = if (unreadCount > 99L) "99+" else unreadCount.toString()
-                        val badgeBg = if (muted) scheme.outline else scheme.primary
-                        val badgeFg = if (muted) scheme.surfaceContainerHigh else scheme.onPrimary
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .heightIn(min = 14.dp)
-                                .widthIn(min = 14.dp)
-                                .background(badgeBg, UnreadBadgeShape)
-                                .padding(horizontal = 3.dp, vertical = 1.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = badgeText,
-                                color = badgeFg,
-                                style = MaterialTheme.typography.labelSmall,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                            )
-                        }
+                            .align(Alignment.TopEnd)
+                            .heightIn(min = 14.dp)
+                            .widthIn(min = 14.dp)
+                            .background(badgeBg, UnreadBadgeShape)
+                            .padding(horizontal = 3.dp, vertical = 1.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = badgeFg,
+                            style = MaterialTheme.typography.labelSmall,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                        )
                     }
                 }
-            },
-            secondaryLabel = {
-                if (preview.isNotBlank()) {
-                    Text(
-                        text = preview,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            },
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            }
+        },
+        secondaryLabel = {
+            if (preview.isNotBlank()) {
                 Text(
-                    text = name,
+                    text = preview,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-                if (pinned) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        Icons.Default.Flag,
-                        contentDescription = "置顶",
-                        tint = scheme.primary,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
-                if (timeStr.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = timeStr,
-                        color = scheme.outline,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                    )
-                }
+            }
+        },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = name,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (pinned) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    Icons.Default.Flag,
+                    contentDescription = "置顶",
+                    tint = scheme.primary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+            if (timeStr.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = timeStr,
+                    color = scheme.outline,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -210,13 +212,14 @@ private fun buildMessagePreview(
 
 private fun formatTime(msgTime: Long): String {
     if (msgTime <= 0) return ""
-    val cal = Calendar.getInstance().apply { timeInMillis = msgTime * 1000 }
-    val today = Calendar.getInstance()
-    return if (cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+    val timeMs = msgTime * 1000L
+    val now = System.currentTimeMillis()
+    val cal = Calendar.getInstance().apply { timeInMillis = timeMs }
+    val today = Calendar.getInstance().apply { timeInMillis = now }
+    val isToday = cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
         cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
-    ) {
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(cal.time)
-    } else {
-        SimpleDateFormat("MM/dd", Locale.getDefault()).format(cal.time)
+    val formatter = if (isToday) timeFormatToday else timeFormatOther
+    return synchronized(formatter) {
+        formatter.format(cal.time)
     }
 }
