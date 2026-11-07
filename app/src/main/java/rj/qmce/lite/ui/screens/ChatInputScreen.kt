@@ -94,9 +94,6 @@ import rj.qmce.lite.data.chat.MessageTokenCodec.BOUNDARY_START
 import rj.qmce.lite.data.emotion.EmotionRepository
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
-import rj.qmce.lite.agent.predict.MessagePredictionController
-import rj.qmce.lite.agent.predict.PredictionMessage
-import rj.qmce.lite.agent.predict.PredictionUiState
 import rj.qmce.lite.ui.theme.LocalQmceAdaptive
 import rj.qmce.lite.viewmodel.ChatDetailViewModel
 import android.graphics.Bitmap
@@ -186,11 +183,6 @@ fun ChatInputScreen(
         marketFaceSlots.clear()
         atSlots.clear()
         vm.consumePendingVoiceText()
-    }
-
-    val predictionState by MessagePredictionController.state.collectAsState()
-    DisposableEffect(peerUid, chatType) {
-        onDispose { MessagePredictionController.reset() }
     }
 
     LaunchedEffect(showToolPanel, showEmojiPicker) {
@@ -782,48 +774,6 @@ fun ChatInputScreen(
                     },
                 )
             }
-            if (chatType != 100) {
-                item(key = "prediction") {
-                    PredictionSection(
-                        predictionState = predictionState,
-                        onPredict = {
-                            val msgs = vm.messages.value.takeLast(20).map { ui ->
-                                PredictionMessage(
-                                    sender = if (ui.isSelf) "我" else ui.senderNick.ifBlank { ui.senderUid },
-                                    text = ui.text,
-                                    msgId = ui.msgId,
-                                    msgTime = ui.time,
-                                )
-                            }
-                            MessagePredictionController.start(
-                                peerUid = peerUid,
-                                chatType = chatType,
-                                initial = msgs,
-                            )
-                        },
-                        onRetry = {
-                            val msgs = vm.messages.value.takeLast(20).map { ui ->
-                                PredictionMessage(
-                                    sender = if (ui.isSelf) "我" else ui.senderNick.ifBlank { ui.senderUid },
-                                    text = ui.text,
-                                    msgId = ui.msgId,
-                                    msgTime = ui.time,
-                                )
-                            }
-                            MessagePredictionController.retry(
-                                peerUid = peerUid,
-                                chatType = chatType,
-                                initial = msgs,
-                            )
-                        },
-                        onSendSuggestion = { suggestion ->
-                            MessagePredictionController.reset()
-                            onSend(suggestion, activeReplyTarget)
-                            onBack()
-                        },
-                    )
-                }
-            }
             item(key = "more") {
                 Button(
                     onClick = { showToolPanel = true },
@@ -842,87 +792,6 @@ fun ChatInputScreen(
                         )
                     },
                 ) { Text("更多") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PredictionSection(
-    predictionState: PredictionUiState,
-    onPredict: () -> Unit,
-    onRetry: () -> Unit,
-    onSendSuggestion: (String) -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    when (predictionState) {
-        is PredictionUiState.Idle -> {
-            CompactButton(
-                onClick = onPredict,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 2.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(),
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        modifier = Modifier.size(ButtonDefaults.LargeIconSize),
-                    )
-                },
-            ) { Text("预测回复") }
-        }
-
-        is PredictionUiState.Loading -> {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(28.dp))
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(
-                    text = "Fluoxetine 预测中…",
-                    color = scheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-
-        is PredictionUiState.Ready -> {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                predictionState.suggestions.forEach { suggestion ->
-                    Button(
-                        onClick = { onSendSuggestion(suggestion) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 2.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(),
-                    ) { Text(suggestion) }
-                }
-            }
-        }
-
-        is PredictionUiState.Error -> {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = predictionState.message,
-                    color = scheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-                CompactButton(
-                    onClick = onRetry,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 2.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(),
-                ) { Text("重试") }
             }
         }
     }

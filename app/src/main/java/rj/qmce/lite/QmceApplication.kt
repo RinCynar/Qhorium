@@ -405,9 +405,19 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
     private fun isOriginalPackageNameCaller(): Boolean {
         return Thread.currentThread().stackTrace.any { frame ->
             val c = frame.className
+            if (c.startsWith("com.tencent.mobileqq.msf.service.") || c.startsWith("com.tencent.mobileqq.msf.sdk.")) {
+                return@any false
+            }
             c.startsWith("oicq.wlogin_sdk.") ||
                 c.startsWith("com.tencent.mobileqq.msf.core.auth") ||
                 c.startsWith("com.tencent.mobileqq.msf.core.net.") ||
+                c.startsWith("com.tencent.mobileqq.msf.core.wtlogin.") ||
+                c.startsWith("com.tencent.mobileqq.qsec.") ||
+                c.startsWith("com.tencent.mobileqq.fe.") ||
+                c.startsWith("com.tencent.mobileqq.sign.") ||
+                c.startsWith("com.tencent.mobileqq.dt.") ||
+                c.startsWith("com.tencent.mobileqq.channel.") ||
+                c.startsWith("com.tencent.qqnt.account.wtlogin.") ||
                 c.startsWith("com.tencent.turingfd.") ||
                 c.startsWith("com.tencent.secprotocol.") ||
                 c.startsWith("com.tencent.qimei.") ||
@@ -416,8 +426,10 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
                 c.startsWith("com.tencent.mobileqq.utils.KidInfoUtil$") ||
                 c == "com.tencent.mobileqq.utils.HexUtil" ||
                 c.startsWith("com.tencent.mobileqq.utils.HexUtil$") ||
-                c.contains("WtLogin") ||
-                c.contains("wlogin") ||
+                c == "com.tencent.mobileqq.utils.AppUtil" ||
+                c.startsWith("com.tencent.mobileqq.utils.AppUtil$") ||
+                c.contains("wtlogin", ignoreCase = true) ||
+                c.contains("wlogin", ignoreCase = true) ||
                 c == "rj.qmce.lite.fix.SignatureProbe"
         }
     }
@@ -474,13 +486,17 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
         QmceLog.w("QMCE", "getCustomGuid failed", error)
     }.getOrNull()
 
-    // QQ 代码构造的 intent ComponentName 用 com.tencent.qqlite，但实际装的是 rj.qmce.litex，
+    // QQ 代码构造的 intent ComponentName 或 package 用 com.tencent.qqlite，但实际装的是 top.rincynar.qhr，
     // Android 找不到组件抛 SecurityException。拦截并修正包名。
     private fun fixIntent(intent: Intent?): Intent? {
-        val cn = intent?.component ?: return intent
-        if (cn.packageName == "com.tencent.qqlite") {
+        if (intent == null) return null
+        val cn = intent.component
+        if (cn != null && cn.packageName == "com.tencent.qqlite") {
             intent.component =
                 android.content.ComponentName(BuildConfig.APPLICATION_ID, cn.className)
+        }
+        if (intent.`package` == "com.tencent.qqlite") {
+            intent.`package` = BuildConfig.APPLICATION_ID
         }
         return intent
     }

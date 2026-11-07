@@ -38,7 +38,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mqq.app.AppRuntime
 import rj.qmce.lite.data.chat.AtMention
-import rj.qmce.lite.data.ai.MessageSummaryClient
 import rj.qmce.lite.data.chat.ChatRepository
 import rj.qmce.lite.data.chat.ChatSendPipeline
 import rj.qmce.lite.data.chat.GroupMemberRepository
@@ -349,25 +348,6 @@ class ChatDetailViewModel : ViewModel() {
         val label: String,
     )
 
-    sealed interface MessageSummaryState {
-        data object Idle : MessageSummaryState
-        data class Loading(
-            val selectedCount: Int,
-            val text: String,
-        ) : MessageSummaryState
-
-        data class Success(
-            val selectedCount: Int,
-            val text: String,
-        ) : MessageSummaryState
-
-        data class Error(
-            val selectedCount: Int,
-            val message: String,
-            val retryable: Boolean,
-        ) : MessageSummaryState
-    }
-
     private val _messages = MutableStateFlow<List<UiMsg>>(emptyList())
     val messages: StateFlow<List<UiMsg>> = _messages
 
@@ -386,14 +366,8 @@ class ChatDetailViewModel : ViewModel() {
     private val _unreadBadgeText = MutableStateFlow<String?>(null)
     val unreadBadgeText: StateFlow<String?> = _unreadBadgeText
 
-    private val _messageSummaryState = MutableStateFlow<MessageSummaryState>(MessageSummaryState.Idle)
-    val messageSummaryState: StateFlow<MessageSummaryState> = _messageSummaryState
     private val _pttTranslationStates = MutableStateFlow<Map<Long, PttTranslationState>>(emptyMap())
     val pttTranslationStates: StateFlow<Map<Long, PttTranslationState>> = _pttTranslationStates
-    private val messageSummaryClient = MessageSummaryClient()
-    private var messageSummaryRequest: MessageSummaryClient.Request? = null
-    private var messageSummaryMessages: List<MessageSummaryClient.SummaryMessage> = emptyList()
-    private val messageSummaryGeneration = AtomicInteger()
 
     private val _pendingForwardMessages = MutableStateFlow<List<UiMsg>>(emptyList())
     private val _pendingReplyTarget = MutableStateFlow<ReplyTarget?>(null)
@@ -495,7 +469,6 @@ class ChatDetailViewModel : ViewModel() {
         myUin: String = "",
         messageNavigation: MessageNavigationSnapshot = MessageNavigationSnapshot(),
     ) {
-        dismissMessageSummary()
         val session = chatSession.incrementAndGet()
         forwardDetailRequest.incrementAndGet()
         replySourceRequest.incrementAndGet()
@@ -1800,8 +1773,6 @@ class ChatDetailViewModel : ViewModel() {
         pttTranslationRequests.clear()
         pttTranslationHandler.removeCallbacksAndMessages(null)
         _pttTranslationStates.value = emptyMap()
-        messageSummaryGeneration.incrementAndGet()
-        messageSummaryRequest?.cancel()
         OfficialPttPlayer.stopAndRelease()
         chatRepository.close()
         RichMediaRepository.setInvalidationListener(null)
@@ -3342,94 +3313,6 @@ class ChatDetailViewModel : ViewModel() {
                 }
             }
             .joinToString("\n\n")
-    }
-
-    fun summarizeSelected() {
-        val input = selectedMessages().mapNotNull { message ->
-            val text = message.text.trim()
-            if (text.isBlank() || text == "...") return@mapNotNull null
-            MessageSummaryClient.SummaryMessage(
-                sender = message.senderNick.ifBlank { if (message.isSelf) "我" else "对方" },
-                text = text,
-            )
-        }
-        if (input.isEmpty()) {
-            _messageSummaryState.value = MessageSummaryState.Error(
-                selectedCount = 0,
-                message = "选中的消息没有可总结内容",
-                retryable = false,
-            )
-            return
-        }
-        messageSummaryMessages = input
-        exitMultiSelect()
-        startMessageSummary(input)
-    }
-
-    fun retryMessageSummary() {
-        if (messageSummaryMessages.isEmpty()) {
-            _messageSummaryState.value = MessageSummaryState.Error(
-                selectedCount = 0,
-                message = "没有可重试的总结请求",
-                retryable = false,
-            )
-            return
-        }
-        startMessageSummary(messageSummaryMessages)
-    }
-
-    fun dismissMessageSummary() {
-        messageSummaryGeneration.incrementAndGet()
-        messageSummaryRequest?.cancel()
-        messageSummaryRequest = null
-        messageSummaryMessages = emptyList()
-        _messageSummaryState.value = MessageSummaryState.Idle
-    }
-
-    private fun startMessageSummary(input: List<MessageSummaryClient.SummaryMessage>) {
-        messageSummaryRequest?.cancel()
-        val generation = messageSummaryGeneration.incrementAndGet()
-        _messageSummaryState.value = MessageSummaryState.Loading(input.size, "")
-        messageSummaryRequest = messageSummaryClient.stream(
-            input,
-            object : MessageSummaryClient.Listener {
-                override fun onChunk(text: String) {
-                    if (generation != messageSummaryGeneration.get()) return
-                    val current = _messageSummaryState.value as? MessageSummaryState.Loading
-                        ?: return
-                    _messageSummaryState.value = current.copy(text = current.text + text)
-                }
-
-                override fun onComplete() {
-                    if (generation != messageSummaryGeneration.get()) return
-                    val current = _messageSummaryState.value as? MessageSummaryState.Loading
-                        ?: return
-                    messageSummaryRequest = null
-                    if (current.text.isBlank()) {
-                        _messageSummaryState.value = MessageSummaryState.Error(
-                            selectedCount = current.selectedCount,
-                            message = "模型没有返回总结内容",
-                            retryable = true,
-                        )
-                    } else {
-                        _messageSummaryState.value = MessageSummaryState.Success(
-                            selectedCount = current.selectedCount,
-                            text = current.text.trim(),
-                        )
-                    }
-                }
-
-                override fun onError(message: String, retryable: Boolean) {
-                    if (generation != messageSummaryGeneration.get()) return
-                    messageSummaryRequest = null
-                    _messageSummaryState.value = MessageSummaryState.Error(
-                        selectedCount = input.size,
-                        message = message,
-                        retryable = retryable,
-                    )
-                }
-            },
-        )
     }
 
     fun prepareBatchForward(): Boolean {

@@ -18,7 +18,6 @@ object QmceNotifyLifecycle {
         QmceMessageNotifier.start(app)
         QmceContactSystemNotifier.start(app)
         QmceMessageRefreshScheduler.start(app, isLoggedIn = true)
-        rj.qmce.lite.agent.AgentSubsystem.onLoggedIn(app)
         Log.d(TAG, "logged-in services started")
     }
 
@@ -28,7 +27,6 @@ object QmceNotifyLifecycle {
         QmceMessageNotifier.stop()
         QmceContactSystemNotifier.stop()
         QmceMessageRefreshScheduler.stop()
-        rj.qmce.lite.agent.AgentSubsystem.onLoggedOut()
         QmceKeepAliveService.sync(app, loggedIn = false)
         QmceForegroundSession.setActiveChat(null, null)
         QmceForegroundSession.appInForeground = false

@@ -55,7 +55,6 @@ fun SettingsScreen(
     onOpenBackground: () -> Unit,
     onOpenCall: () -> Unit,
     onOpenData: () -> Unit,
-    onOpenIntelligence: () -> Unit,
     onOpenAboutHub: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
@@ -130,16 +129,6 @@ fun SettingsScreen(
                     icon = Icons.Default.DeleteSweep,
                     reportName = "数据",
                     onClick = onOpenData,
-                    transformationSpec = transformationSpec,
-                )
-            }
-            item(key = "settings-intelligence") {
-                SettingsHubEntry(
-                    title = "智能",
-                    subtitle = "AI 与智能体",
-                    icon = Icons.Default.SmartToy,
-                    reportName = "智能",
-                    onClick = onOpenIntelligence,
                     transformationSpec = transformationSpec,
                 )
             }

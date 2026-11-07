@@ -60,7 +60,7 @@ public final class LegacyKiller {
     }
 
     public static void installForCurrentPackage(Context context) {
-        // Always install PM proxy for package name mapping (com.tencent.qqlite → rj.qmce.litex).
+        // Always install PM proxy for package name mapping (com.tencent.qqlite → top.rincynar.qhr).
         // Signature spoofing is gated by Flag.USE_OLD_SIGNKILL.
         killPM();
         if (context != null) {
@@ -228,19 +228,30 @@ public final class LegacyKiller {
 
     }
 
-    private static boolean isSignatureCheckStack() {
+    public static boolean isSignatureCheckStack() {
         StackTraceElement[] frames = Thread.currentThread().getStackTrace();
         for (StackTraceElement frame : frames) {
             String c = frame.getClassName();
             if (c.startsWith("oicq.wlogin_sdk.")
                     || c.startsWith("com.tencent.mobileqq.msf.core.auth")
+                    || c.startsWith("com.tencent.mobileqq.msf.core.net.")
+                    || c.startsWith("com.tencent.mobileqq.msf.core.wtlogin.")
+                    || c.startsWith("com.tencent.mobileqq.qsec.")
+                    || c.startsWith("com.tencent.mobileqq.fe.")
+                    || c.startsWith("com.tencent.mobileqq.sign.")
+                    || c.startsWith("com.tencent.mobileqq.dt.")
+                    || c.startsWith("com.tencent.mobileqq.channel.")
+                    || c.startsWith("com.tencent.qqnt.account.wtlogin.")
                     || c.startsWith("com.tencent.turingfd.")
                     || c.startsWith("com.tencent.secprotocol.")
                     || c.startsWith("com.tencent.qimei.")
-                    || c.startsWith("com.tencent.beacon.")) {
+                    || c.startsWith("com.tencent.beacon.")
+                    || c.toLowerCase(java.util.Locale.ROOT).contains("wtlogin")
+                    || c.toLowerCase(java.util.Locale.ROOT).contains("wlogin")
+                    || "rj.qmce.lite.fix.SignatureProbe".equals(c)) {
                 return true;
             }
-            if (c.startsWith("com.tencent.mobileqq.msf.service.")) {
+            if (c.startsWith("com.tencent.mobileqq.msf.service.") || c.startsWith("com.tencent.mobileqq.msf.sdk.")) {
                 return false;
             }
         }
@@ -431,6 +442,7 @@ public final class LegacyKiller {
             PackageInfo info = delegate.createFromParcel(source);
             if (info != null && shouldSpoofPackage(info.packageName)) {
                 fixPackageInfoVersion(info);
+                PackageSignatureProvider.rewritePackageInfo(info);
             }
             return info;
         }

@@ -26,10 +26,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val fontScale: Float = DEFAULT_FONT_SCALE,
         val edgeSafeAreaEnabled: Boolean = true,
         val edgeSafeAreaScale: Float = DEFAULT_EDGE_SAFE_SCALE,
-        val aiCustomEnabled: Boolean = false,
-        val aiBaseUrl: String = "",
-        val aiApiKey: String = "",
-        val aiModel: String = "",
         val contactsSortMode: String = DEFAULT_CONTACTS_SORT_MODE,
         val notifyEnabled: Boolean = true,
         val notifyC2c: Boolean = true,
@@ -50,16 +46,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val appCenterReportingEnabled: Boolean = true,
         val qmceVerboseLog: Boolean = BuildConfig.DEBUG,
         val qlogLocalWriteEnabled: Boolean = false,
-        val agentEnabled: Boolean = false,
-        val agentSendPacketEnabled: Boolean = false,
         val packetToolEnabled: Boolean = false,
-    )
-
-    data class AiEndpoint(
-        val baseUrl: String,
-        val apiKey: String?,
-        val model: String,
-        val custom: Boolean,
     )
 
     private val preferences =
@@ -80,10 +67,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         edgeSafeAreaEnabled = preferences.getBoolean(KEY_EDGE_SAFE_AREA_ENABLED, true),
         edgeSafeAreaScale = preferences.getFloat(KEY_EDGE_SAFE_AREA_SCALE, DEFAULT_EDGE_SAFE_SCALE)
             .coerceIn(MIN_EDGE_SAFE_SCALE, MAX_EDGE_SAFE_SCALE),
-        aiCustomEnabled = preferences.getBoolean(KEY_AI_CUSTOM_ENABLED, false),
-        aiBaseUrl = preferences.getString(KEY_AI_BASE_URL, "").orEmpty(),
-        aiApiKey = preferences.getString(KEY_AI_API_KEY, "").orEmpty(),
-        aiModel = preferences.getString(KEY_AI_MODEL, "").orEmpty(),
         contactsSortMode = preferences.getString(KEY_CONTACTS_SORT_MODE, DEFAULT_CONTACTS_SORT_MODE)
             .orEmpty()
             .ifBlank { DEFAULT_CONTACTS_SORT_MODE },
@@ -113,8 +96,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         appCenterReportingEnabled = preferences.getBoolean(KEY_APP_CENTER_REPORTING, true),
         qmceVerboseLog = preferences.getBoolean(KEY_QMCE_VERBOSE_LOG, BuildConfig.DEBUG),
         qlogLocalWriteEnabled = preferences.getBoolean(KEY_QLOG_LOCAL_WRITE, false),
-        agentEnabled = preferences.getBoolean(KEY_AGENT_ENABLED, false),
-        agentSendPacketEnabled = preferences.getBoolean(KEY_AGENT_SEND_PACKET, false),
         packetToolEnabled = preferences.getBoolean(KEY_PACKET_TOOL_ENABLED, false),
     )
 
@@ -130,10 +111,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setEdgeSafeAreaEnabled(enabled: Boolean) = update { it.copy(edgeSafeAreaEnabled = enabled) }
     fun setEdgeSafeAreaScale(scale: Float) =
         update { it.copy(edgeSafeAreaScale = scale.coerceIn(MIN_EDGE_SAFE_SCALE, MAX_EDGE_SAFE_SCALE)) }
-    fun setAiCustomEnabled(enabled: Boolean) = update { it.copy(aiCustomEnabled = enabled) }
-    fun setAiBaseUrl(value: String) = update { it.copy(aiBaseUrl = value) }
-    fun setAiApiKey(value: String) = update { it.copy(aiApiKey = value) }
-    fun setAiModel(value: String) = update { it.copy(aiModel = value) }
     fun setContactsSortMode(mode: String) =
         update { it.copy(contactsSortMode = mode.ifBlank { DEFAULT_CONTACTS_SORT_MODE }) }
 
@@ -174,16 +151,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         applyQlogLocalWriteEnabled(enabled)
     }
 
-    fun setAgentEnabled(enabled: Boolean) {
-        update { it.copy(agentEnabled = enabled) }
-        rj.qmce.lite.agent.AgentSubsystem.setEnabled(getApplication(), enabled)
-    }
-
-    fun setAgentSendPacketEnabled(enabled: Boolean) {
-        update { it.copy(agentSendPacketEnabled = enabled) }
-        rj.qmce.lite.agent.AgentToolRegistrar.ensure(getApplication())
-    }
-
     fun setPacketToolEnabled(enabled: Boolean) =
         update { it.copy(packetToolEnabled = enabled) }
 
@@ -200,10 +167,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .putFloat(KEY_FONT_SCALE, updated.fontScale)
                 .putBoolean(KEY_EDGE_SAFE_AREA_ENABLED, updated.edgeSafeAreaEnabled)
                 .putFloat(KEY_EDGE_SAFE_AREA_SCALE, updated.edgeSafeAreaScale)
-                .putBoolean(KEY_AI_CUSTOM_ENABLED, updated.aiCustomEnabled)
-                .putString(KEY_AI_BASE_URL, updated.aiBaseUrl)
-                .putString(KEY_AI_API_KEY, updated.aiApiKey)
-                .putString(KEY_AI_MODEL, updated.aiModel)
                 .putString(KEY_CONTACTS_SORT_MODE, updated.contactsSortMode)
                 .putBoolean(KEY_NOTIFY_ENABLED, updated.notifyEnabled)
                 .putBoolean(KEY_NOTIFY_C2C, updated.notifyC2c)
@@ -224,8 +187,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .putBoolean(KEY_APP_CENTER_REPORTING, updated.appCenterReportingEnabled)
                 .putBoolean(KEY_QMCE_VERBOSE_LOG, updated.qmceVerboseLog)
                 .putBoolean(KEY_QLOG_LOCAL_WRITE, updated.qlogLocalWriteEnabled)
-                .putBoolean(KEY_AGENT_ENABLED, updated.agentEnabled)
-                .putBoolean(KEY_AGENT_SEND_PACKET, updated.agentSendPacketEnabled)
                 .putBoolean(KEY_PACKET_TOOL_ENABLED, updated.packetToolEnabled)
         }
     }
@@ -241,10 +202,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_FONT_SCALE = "font_scale"
         const val KEY_EDGE_SAFE_AREA_ENABLED = "edge_safe_area_enabled"
         const val KEY_EDGE_SAFE_AREA_SCALE = "edge_safe_area_scale"
-        private const val KEY_AI_CUSTOM_ENABLED = "ai_custom_enabled"
-        private const val KEY_AI_BASE_URL = "ai_base_url"
-        private const val KEY_AI_API_KEY = "ai_api_key"
-        private const val KEY_AI_MODEL = "ai_model"
         const val KEY_CONTACTS_SORT_MODE = "contacts_sort_mode"
         const val DEFAULT_CONTACTS_SORT_MODE = "category"
         private const val DEFAULT_MANUAL_SCALE = 1.0f
@@ -277,8 +234,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_APP_CENTER_REPORTING = "app_center_reporting_enabled"
         const val KEY_QMCE_VERBOSE_LOG = "qmce_verbose_log"
         const val KEY_QLOG_LOCAL_WRITE = "qlog_local_write_enabled"
-        const val KEY_AGENT_ENABLED = "agent_enabled"
-        const val KEY_AGENT_SEND_PACKET = "agent_send_packet"
         const val KEY_PACKET_TOOL_ENABLED = "packet_tool_enabled"
 
         const val REFRESH_PUSH_ONLY = "push_only"
@@ -286,34 +241,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val REFRESH_30S = "30s"
         const val REFRESH_1M = "1m"
         const val REFRESH_5M = "5m"
-
-        val BUILTIN_AI_BASE_URL: String get() = BuildConfig.BUILTIN_AI_BASE_URL
-        val BUILTIN_AI_MODEL: String get() = BuildConfig.BUILTIN_AI_MODEL
-        val BUILTIN_AI_API_KEY: String get() = BuildConfig.BUILTIN_AI_API_KEY
-
-        fun resolveAiEndpoint(context: Context): AiEndpoint {
-            val prefs = context.applicationContext
-                .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            val enabled = prefs.getBoolean(KEY_AI_CUSTOM_ENABLED, false)
-            val baseUrl = prefs.getString(KEY_AI_BASE_URL, "").orEmpty().trim()
-            val apiKey = prefs.getString(KEY_AI_API_KEY, "").orEmpty().trim()
-            val model = prefs.getString(KEY_AI_MODEL, "").orEmpty().trim()
-            return if (enabled && baseUrl.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank()) {
-                AiEndpoint(
-                    baseUrl = normalizeCompletionsUrl(baseUrl),
-                    apiKey = apiKey,
-                    model = model,
-                    custom = true,
-                )
-            } else {
-                AiEndpoint(
-                    baseUrl = BUILTIN_AI_BASE_URL,
-                    apiKey = BUILTIN_AI_API_KEY,
-                    model = BUILTIN_AI_MODEL,
-                    custom = false,
-                )
-            }
-        }
 
         fun isAppCenterReportingEnabled(context: Context): Boolean =
             context.applicationContext
@@ -355,14 +282,5 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
                     .getString(KEY_OTA_LAST_DOWNLOAD_MODE, OtaDownloadMode.WatchBrowser.pref),
             )
-
-        private fun normalizeCompletionsUrl(raw: String): String {
-            val trimmed = raw.trimEnd('/')
-            return when {
-                trimmed.endsWith("/chat/completions") -> trimmed
-                trimmed.endsWith("/v1") -> "$trimmed/chat/completions"
-                else -> trimmed
-            }
-        }
     }
 }

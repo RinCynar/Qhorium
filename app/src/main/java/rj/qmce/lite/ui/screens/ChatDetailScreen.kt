@@ -273,7 +273,6 @@ fun ChatDetailScreen(
     val inlineKeyboardActions by vm.inlineKeyboardActions.collectAsState()
     val multiSelectMode by vm.multiSelectMode.collectAsState()
     val selectedMsgIds by vm.selectedMsgIds.collectAsState()
-    val messageSummaryState by vm.messageSummaryState.collectAsState()
     val timelineItems = remember(messages) { messages.toTimelineItems() }
     val currentTimelineItems = rememberUpdatedState(timelineItems)
     LaunchedEffect(chatType, peerUin, messages) {
@@ -940,10 +939,6 @@ fun ChatDetailScreen(
                     showMultiSelectActions = false
                     vm.exitMultiSelect()
                 },
-                onSummary = {
-                    showMultiSelectActions = false
-                    vm.summarizeSelected()
-                },
                 onCopy = {
                     showMultiSelectActions = false
                     val text = vm.batchCopySelected()
@@ -969,13 +964,6 @@ fun ChatDetailScreen(
                     showMultiSelectActions = false
                     if (selectedMsgIds.isNotEmpty()) vm.batchDeleteSelected()
                 },
-            )
-        }
-        if (messageSummaryState !is ChatDetailViewModel.MessageSummaryState.Idle) {
-            MessageSummaryScreen(
-                state = messageSummaryState,
-                onBack = vm::dismissMessageSummary,
-                onRetry = vm::retryMessageSummary,
             )
         }
         if (forwardDetailState !is ChatDetailViewModel.ForwardDetailState.Idle) {
@@ -1355,7 +1343,6 @@ private fun MultiSelectActionsScreen(
     selectedCount: Int,
     onDismiss: () -> Unit,
     onExit: () -> Unit,
-    onSummary: () -> Unit,
     onCopy: () -> Unit,
     onForward: () -> Unit,
     onShare: () -> Unit,
@@ -1404,19 +1391,6 @@ private fun MultiSelectActionsScreen(
                         }
                         .padding(horizontal = 18.dp, vertical = 10.dp),
                 )
-            }
-            item(key = "ms-summary") {
-                Button(
-                    onClick = onSummary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec),
-                    transformation = SurfaceTransformation(transformationSpec),
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("AI 总结")
-                }
             }
             item(key = "ms-copy") {
                 Button(

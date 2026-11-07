@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import mqq.app.AppRuntime
-import rj.qmce.lite.agent.AgentSession
 import rj.qmce.lite.data.chat.MediaSdkAccess
 import rj.qmce.lite.kernel.KernelBridge
 import rj.qmce.lite.kernel.SdkCompat
@@ -215,18 +214,6 @@ class ChatListViewModel : ViewModel() {
                 Log.d(TAG, "RecentMessageStore updated, patching recent cache")
                 patchSentMessages()
                 publishCache("sent-message")
-            }
-        }
-        scope.launch {
-            rj.qmce.lite.agent.AgentSubsystem.active.collect {
-                mainHandler.post { publishCache("agent-active") }
-            }
-        }
-        scope.launch {
-            AgentSession.lastText.collect {
-                if (rj.qmce.lite.agent.AgentSubsystem.isActive) {
-                    mainHandler.post { publishCache("agent-summary") }
-                }
             }
         }
     }
@@ -436,8 +423,6 @@ class ChatListViewModel : ViewModel() {
                 .forEach(ordered::add)
             ordered
         }
-        // Agent pseudo-contact pinned at the top of the chat list.
-        prependAgentPseudoContact(visible)
         logDebugContacts("publish-$source", visible)
         _contacts.value = ContactsSnapshot(++cacheRevision, visible)
         _statusText.value = "${visible.size} 条会话"
@@ -450,25 +435,7 @@ class ChatListViewModel : ViewModel() {
         )
     }
 
-    /** Prepends the Agent pseudo-contact at the top of the chat list. */
-    private fun prependAgentPseudoContact(list: MutableList<RecentContactInfo>) {
-        if (!rj.qmce.lite.agent.AgentSubsystem.isActive) return
-        val summary = AgentSession.summary()
-        list.add(0, RecentContactInfo().apply {
-            peerUid = AgentSession.PEER_UID
-            peerUin = AgentSession.PEER_UIN
-            peerName = AgentSession.PEER_NAME
-            chatType = AgentSession.CHAT_TYPE
-            id = AgentSession.PEER_UID
-            msgTime = if (summary.lastTimeMillis > 0L) summary.lastTimeMillis / 1000L else 0L
-            unreadCnt = summary.unreadCount.toLong()
-            abstractContent = arrayListOf(
-                com.tencent.qqnt.kernelpublic.nativeinterface.MsgAbstractElement().apply {
-                    content = summary.lastText.ifBlank { "点此与 Fluoxetine 对话" }
-                },
-            )
-        })
-    }
+
 
     fun loadContacts(runtime: AppRuntime?) {
         if (loading) {
@@ -535,6 +502,9 @@ class ChatListViewModel : ViewModel() {
                     mainHandler.post { _statusText.value = "等待内核会话服务…" }
                     scheduleLoadRetry(runtime, "recent-service-unavailable")
                     return@Thread
+                }
+                if (cacheIsEmpty()) {
+                    mainHandler.post { _statusText.value = "正在同步会话…" }
                 }
 
                 // 1. 先读本地缓存 (official: l(listType))

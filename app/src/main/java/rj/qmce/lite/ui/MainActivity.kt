@@ -99,7 +99,6 @@ import rj.qmce.lite.ui.screens.ContactPickerScreen
 import rj.qmce.lite.ui.screens.DataSettingsScreen
 import rj.qmce.lite.ui.screens.DeveloperToolsSettingsScreen
 import rj.qmce.lite.ui.screens.ForceExitConfirmationScreen
-import rj.qmce.lite.ui.screens.IntelligenceSettingsScreen
 import rj.qmce.lite.ui.screens.InteractionSettingsScreen
 import rj.qmce.lite.ui.screens.LocalImagePickerScreen
 import rj.qmce.lite.ui.screens.LoginScreen
@@ -652,31 +651,18 @@ private fun WearApp() {
                     composable("chat") {
                         val contact = selectedContact
                         if (contact != null) {
-                            if (contact.chatType == rj.qmce.lite.agent.AgentSession.CHAT_TYPE) {
-                                AgentChatRoute(
-                                    onOpenInput = {
-                                        navController.navigate("agentChatInput") {
-                                            launchSingleTop = true
-                                        }
-                                    },
-                                    onBack = {
-                                        selectedContact = null
-                                        navController.popBackStack()
-                                    },
-                                )
-                            } else {
-                                ChatDetailScreen(
-                                    runtime = runtime,
-                                    peerUid = contact.peerUid ?: "",
-                                    peerUin = contact.peerUin.takeIf { it > 0L }?.toString()
-                                        ?: contact.id.orEmpty(),
-                                    chatType = contact.chatType,
-                                    peerName = contact.peerName ?: contact.id ?: "",
-                                    avatarPath = contact.avatarPath.orEmpty(),
-                                    avatarUrl = contact.avatarUrl.orEmpty(),
-                                    messageNavigation = MessageNavigationSnapshot.fromRecentContact(contact),
-                                    myUin = loggedUin,
-                                    onBack = { navController.popBackStack() },
+                            ChatDetailScreen(
+                                runtime = runtime,
+                                peerUid = contact.peerUid ?: "",
+                                peerUin = contact.peerUin.takeIf { it > 0L }?.toString()
+                                    ?: contact.id.orEmpty(),
+                                chatType = contact.chatType,
+                                peerName = contact.peerName ?: contact.id ?: "",
+                                avatarPath = contact.avatarPath.orEmpty(),
+                                avatarUrl = contact.avatarUrl.orEmpty(),
+                                messageNavigation = MessageNavigationSnapshot.fromRecentContact(contact),
+                                myUin = loggedUin,
+                                onBack = { navController.popBackStack() },
                                     onOpenInput = {
                                         navController.navigate("chatInput") {
                                             launchSingleTop = true
@@ -733,7 +719,6 @@ private fun WearApp() {
                                 onReportingPageChanged = { nestedOfficialPageId = it },
                                 vm = chatDetailVm
                             )
-                            }
                         }
                     }
                     composable("contactPicker") {
@@ -778,18 +763,6 @@ private fun WearApp() {
                             openToolsOnLaunch = false,
                             navController = navController,
                             onReportingPageChanged = { nestedOfficialPageId = it },
-                        )
-                    }
-                    composable("agentChatInput") {
-                        AgentChatInputRoute(
-                            chatDetailVm = chatDetailVm,
-                            navController = navController,
-                        )
-                    }
-                    composable("agentVoiceRecord") {
-                        AgentVoiceRecordRoute(
-                            chatDetailVm = chatDetailVm,
-                            navController = navController,
                         )
                     }
                     composable("chatInputMedia") {
@@ -967,11 +940,6 @@ private fun WearApp() {
                                     launchSingleTop = true
                                 }
                             },
-                            onOpenIntelligence = {
-                                navController.navigate("intelligenceSettings") {
-                                    launchSingleTop = true
-                                }
-                            },
                             onOpenAboutHub = {
                                 navController.navigate("aboutHub") {
                                     launchSingleTop = true
@@ -1018,17 +986,6 @@ private fun WearApp() {
                             onBack = { navController.popBackStack() },
                         )
                     }
-                    composable("intelligenceSettings") {
-                        IntelligenceSettingsScreen(
-                            settingsVm = settingsVm,
-                            onOpenAgentDetails = {
-                                navController.navigate("agentSettings") {
-                                    launchSingleTop = true
-                                }
-                            },
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
                     composable("aboutHub") {
                         AboutHubScreen(
                             settingsVm = settingsVm,
@@ -1052,14 +1009,6 @@ private fun WearApp() {
                             navController.navigate("dataSettings") {
                                 launchSingleTop = true
                                 popUpTo("storageSettings") { inclusive = true }
-                            }
-                        }
-                    }
-                    composable("aiSettings") {
-                        LaunchedEffect(Unit) {
-                            navController.navigate("intelligenceSettings") {
-                                launchSingleTop = true
-                                popUpTo("aiSettings") { inclusive = true }
                             }
                         }
                     }
@@ -1120,12 +1069,6 @@ private fun WearApp() {
                                     launchSingleTop = true
                                 }
                             },
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                    composable("agentSettings") {
-                        rj.qmce.lite.agent.ui.AgentSettingsScreen(
-                            settingsVm = settingsVm,
                             onBack = { navController.popBackStack() },
                         )
                     }
@@ -1334,7 +1277,6 @@ private fun WearApp() {
                 }
             }
             rj.qmce.lite.ui.ota.OtaUpdateDialogHost()
-            rj.qmce.lite.agent.ui.AgentApprovalDialogHost()
         }
     }
 }
@@ -1351,13 +1293,12 @@ private fun officialPageId(route: String?, mainPage: Int): String? = when (route
     "chat", "chatInput" -> OfficialReportBridge.PageIds.AIO
     "singleEmotionPicker" -> OfficialReportBridge.PageIds.EXPRESSION
     "voiceRecord" -> null
-    "agentChat", "agentChatInput", "agentVoiceRecord", "agentSettings" -> null
     "qzoneFeedDetail", "qzoneComment" -> OfficialReportBridge.PageIds.DYNAMIC_INFORMATION
     "qzoneComposer" -> OfficialReportBridge.PageIds.DYNAMIC_PUBLISH
     "qzoneImagePicker" -> OfficialReportBridge.PageIds.ALBUM_SELECTION
     "settingsClearChatCache" -> OfficialReportBridge.PageIds.CLEARS_MESSAGES
     "settings", "appearanceSettings", "interactionSettings", "notificationSettings",
-    "backgroundSettings", "callSettings", "dataSettings", "intelligenceSettings", "aboutHub",
+    "backgroundSettings", "callSettings", "dataSettings", "aboutHub",
     "tileWatchlist", "tileGroupPicker", "syncDataSettings", "storageSettings", "packetToolSettings",
     "aiSettings", "checkUpdate", "diagnostics", "about", "developerToolsSettings" ->
         OfficialReportBridge.PageIds.SETTINGS

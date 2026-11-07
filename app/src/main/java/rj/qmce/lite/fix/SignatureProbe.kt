@@ -33,8 +33,8 @@ object SignatureProbe {
             val md5Chars = sig?.toCharsString()?.let { md5Hex(it.toByteArray()) }
             Log.d(
                 "QMCE-Sign",
-                "pm pkg=${context.packageName} version=${pi.versionName} " +
-                    "sigBytesMd5=$md5Bytes sigCharsMd5=$md5Chars sigLen=${sig?.toByteArray()?.size}",
+                "pm pkg=${context.packageName} piPkg=${pi.packageName} appInfoPkg=${pi.applicationInfo?.packageName} " +
+                    "version=${pi.versionName} sigBytesMd5=$md5Bytes sigCharsMd5=$md5Chars sigLen=${sig?.toByteArray()?.size}",
             )
         }.onFailure { Log.e("QMCE-Sign", "pm dump failed", it) }
         runCatching {
