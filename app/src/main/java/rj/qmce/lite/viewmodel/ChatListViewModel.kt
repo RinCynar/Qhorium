@@ -26,6 +26,7 @@ import mqq.app.AppRuntime
 import rj.qmce.lite.data.chat.MediaSdkAccess
 import rj.qmce.lite.kernel.KernelBridge
 import rj.qmce.lite.kernel.SdkCompat
+import rj.qmce.lite.util.PerfTrace
 
 class ChatListViewModel : ViewModel() {
 
@@ -407,7 +408,81 @@ class ChatListViewModel : ViewModel() {
         Log.d(TAG, "syncProbe: registered")
     }
 
+    @Volatile
+    private var isListScrolling = false
+    @Volatile
+    private var hasPendingPublish = false
+    private var lastPublishedList: List<RecentContactInfo> = emptyList()
+    private var v2DebounceJob: Job? = null
+
+    fun onScrollStateChanged(isScrolling: Boolean) {
+        if (isListScrolling == isScrolling) return
+        isListScrolling = isScrolling
+        Log.d(TAG, "chatListVm: onScrollStateChanged isScrolling=$isScrolling, hasPending=$hasPendingPublish")
+        if (!isScrolling && hasPendingPublish) {
+            hasPendingPublish = false
+            scope.launch {
+                publishCache("scroll-idle")
+            }
+        }
+    }
+
+    private fun scheduleV2Publish() {
+        synchronized(cacheLock) {
+            v2DebounceJob?.cancel()
+            v2DebounceJob = scope.launch {
+                delay(250L)
+                publishCache("v2")
+            }
+        }
+    }
+
+    private fun areAbstractsEquivalent(
+        a: ArrayList<MsgAbstractElement>?,
+        b: ArrayList<MsgAbstractElement>?,
+    ): Boolean {
+        if (a === b) return true
+        if (a == null && b == null) return true
+        if (a == null || b == null) return false
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            val elA = a[i]
+            val elB = b[i]
+            if (elA.content != elB.content || elA.elementType != elB.elementType) return false
+        }
+        return true
+    }
+
+    private fun isListEquivalent(a: List<RecentContactInfo>, b: List<RecentContactInfo>): Boolean {
+        if (a === b) return true
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            val x = a[i]
+            val y = b[i]
+            if (x.contactId != y.contactId ||
+                x.msgTime != y.msgTime ||
+                x.unreadCnt != y.unreadCnt ||
+                x.topFlag != y.topFlag ||
+                x.peerName != y.peerName ||
+                x.remark != y.remark ||
+                x.memberName != y.memberName ||
+                x.shieldFlag != y.shieldFlag ||
+                x.isMsgDisturb != y.isMsgDisturb ||
+                !areAbstractsEquivalent(x.abstractContent, y.abstractContent)
+            ) {
+                return false
+            }
+        }
+        return true
+    }
+
     private fun publishCache(source: String) {
+        if (isListScrolling) {
+            hasPendingPublish = true
+            Log.d(TAG, "recentCache[$source]: scroll active, deferring emission")
+            return
+        }
+
         val visible = synchronized(cacheLock) {
             val ordered = ArrayList<RecentContactInfo>(contactsById.size)
             val emittedIds = HashSet<Long>()
@@ -423,10 +498,18 @@ class ChatListViewModel : ViewModel() {
                 .forEach(ordered::add)
             ordered
         }
+
+        if (source != "cached" && isListEquivalent(visible, lastPublishedList)) {
+            Log.d(TAG, "recentCache[$source]: content identical, skipped emission size=${visible.size}")
+            return
+        }
+        lastPublishedList = visible
+
         logDebugContacts("publish-$source", visible)
         _contacts.value = ContactsSnapshot(++cacheRevision, visible)
         _statusText.value = "${visible.size} 条会话"
         if (visible.isNotEmpty()) cancelLoadRetry()
+        PerfTrace.mark("ChatListViewModel", "Published $source contacts=${visible.size} rev=$cacheRevision")
         Log.d(
             TAG,
             "recentCache[$source]: publish=${visible.size}, revision=$cacheRevision, top3=${
@@ -530,7 +613,7 @@ class ChatListViewModel : ViewModel() {
                     runOnRecentThread {
                         applyRecentChange(info)
                         patchSentMessages()
-                        publishCache("v2")
+                        scheduleV2Publish()
                     }
                 }
                 SdkCompat.addRecentContactListenerV2(recentService, LIST_TYPE, recentContactListener)

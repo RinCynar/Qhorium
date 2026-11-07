@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.ScreenScaffoldDefaults
@@ -21,6 +22,40 @@ import rj.qmce.lite.ui.theme.LocalQmceAdaptive
  *
  * 参数签名与 [ScreenScaffold] 兼容，可直接机械替换调用点。
  */
+@Composable
+fun QmceScreenScaffold(
+    scrollState: ScalingLazyListState,
+    modifier: Modifier = Modifier,
+    edgeButton: (@Composable BoxScope.() -> Unit)? = null,
+    edgeButtonSpacing: Dp = ScreenScaffoldDefaults.EdgeButtonSpacing,
+    timeText: (@Composable () -> Unit)? = null,
+    scrollIndicator: (@Composable BoxScope.() -> Unit)? = { ScrollIndicator(scrollState) },
+    content: @Composable BoxScope.(PaddingValues) -> Unit,
+) {
+    val contentPadding = LocalQmceAdaptive.current.screenContentPadding
+    if (edgeButton != null) {
+        ScreenScaffold(
+            scrollState = scrollState,
+            edgeButton = edgeButton,
+            modifier = modifier,
+            contentPadding = contentPadding,
+            timeText = timeText,
+            scrollIndicator = scrollIndicator,
+            edgeButtonSpacing = edgeButtonSpacing,
+            content = content,
+        )
+    } else {
+        ScreenScaffold(
+            scrollState = scrollState,
+            modifier = modifier,
+            contentPadding = contentPadding,
+            timeText = timeText,
+            scrollIndicator = scrollIndicator,
+            content = content,
+        )
+    }
+}
+
 @Composable
 fun QmceScreenScaffold(
     scrollState: TransformingLazyColumnState,

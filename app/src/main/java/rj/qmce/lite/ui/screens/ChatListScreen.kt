@@ -16,41 +16,30 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.AutoCenteringParams
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Icon
-import rj.qmce.lite.ui.wear.QmceScreenScaffold
-import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
-import androidx.wear.compose.material3.lazy.transformedHeight
 import com.tencent.qqnt.kernel.nativeinterface.RecentContactInfo
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import mqq.app.AppRuntime
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.ui.components.ChatItem
 import rj.qmce.lite.ui.wear.QmceEmptyOrErrorState
 import rj.qmce.lite.ui.wear.QmceLoadingState
+import rj.qmce.lite.ui.wear.QmceScreenScaffold
+import rj.qmce.lite.util.PerfTrace
 import rj.qmce.lite.viewmodel.ChatListViewModel
 
 private const val KERNEL_INIT_ACTION = "com.tencent.mobileqq.action.ON_KERNEL_INIT_COMPLETE"
 
-@OptIn(FlowPreview::class)
 @Composable
 fun ChatListScreen(
     uin: String,
@@ -65,13 +54,18 @@ fun ChatListScreen(
     val context = LocalContext.current
     val contactsSnapshot by vm.contacts.collectAsState()
     val contacts = contactsSnapshot.contacts
-    val isRefreshing by vm.isRefreshing.collectAsState()
     val statusText by vm.statusText.collectAsState()
-    val listState = rememberTransformingLazyColumnState()
-    val scope = rememberCoroutineScope()
-    val transformationSpec = rememberTransformationSpec()
-    val latestContacts by rememberUpdatedState(contacts)
+    val listState = rememberScalingLazyListState()
     val reportUid = runCatching { runtime?.currentUid.orEmpty() }.getOrDefault("")
+
+    LaunchedEffect(Unit) {
+        PerfTrace.mark("ChatListScreen", "ChatListScreen first composed")
+    }
+
+    // Scroll-gating: freeze ViewModel emission during gesture
+    LaunchedEffect(listState.isScrollInProgress) {
+        vm.onScrollStateChanged(listState.isScrollInProgress)
+    }
 
     DisposableEffect(runtime) {
         val receiver = object : BroadcastReceiver() {
@@ -91,75 +85,21 @@ fun ChatListScreen(
         }
     }
 
-    LaunchedEffect(listState, uin, runtime, isPageVisible) {
-        if (!isPageVisible) return@LaunchedEffect
-        repeat(40) {
-            if (OfficialReportBridge.isReadyForEvents()) return@repeat
-            delay(250L)
-        }
-        if (!OfficialReportBridge.isReadyForEvents()) return@LaunchedEffect
-
-        val activeExposures = linkedMapOf<String, ActiveChatExposure>()
-        val firstExposures = hashSetOf<String>()
-        try {
-            snapshotFlow {
-                val currentContacts = latestContacts
-                listState.layoutInfo.visibleItems.mapNotNull { visibleItem ->
-                    // Index 0 is the notification Button; contacts start at 1.
-                    val contactIndex = visibleItem.index - 1
-                    if (contactIndex < 0) return@mapNotNull null
-                    currentContacts.getOrNull(contactIndex)?.let(::chatListExposureKey)
-                }
-            }
-                .map { keys -> keys.distinct() }
-                .distinctUntilChanged()
-                .debounce(100L)
-                .collect { visibleKeys ->
-                    val now = System.currentTimeMillis()
-                    val visibleSet = visibleKeys.toSet()
-                    val currentContacts = latestContacts
-                        .mapNotNull { contact ->
-                            chatListExposureKey(contact)?.let { it to contact }
-                        }
-                        .toMap()
-
-                    activeExposures.keys.toList()
-                        .filterNot(visibleSet::contains)
-                        .forEach { key ->
-                            val exposure = activeExposures.remove(key) ?: return@forEach
-                            OfficialReportBridge.reportChatListItemExposureEnd(
-                                contact = exposure.contact,
-                                homeUin = uin,
-                                uid = reportUid,
-                                exposureDurationMs = now - exposure.startedAtMs,
-                            )
-                        }
-
-                    visibleKeys.forEach { key ->
-                        if (activeExposures.containsKey(key)) return@forEach
-                        val contact = currentContacts[key] ?: return@forEach
-                        if (OfficialReportBridge.reportChatListItemExposure(
-                                contact = contact,
-                                homeUin = uin,
-                                uid = reportUid,
-                                firstExposure = key !in firstExposures,
-                            )
-                        ) {
-                            activeExposures[key] = ActiveChatExposure(contact, now)
-                            firstExposures += key
-                        }
-                    }
-                }
-        } finally {
-            val now = System.currentTimeMillis()
-            activeExposures.values.forEach { exposure ->
-                OfficialReportBridge.reportChatListItemExposureEnd(
-                    contact = exposure.contact,
-                    homeUin = uin,
-                    uid = reportUid,
-                    exposureDurationMs = now - exposure.startedAtMs,
-                )
-            }
+    // Exposure tracking executed strictly when scroll is stationary
+    LaunchedEffect(listState.isScrollInProgress, isPageVisible, contacts) {
+        if (!isPageVisible || listState.isScrollInProgress || contacts.isEmpty()) return@LaunchedEffect
+        delay(400L)
+        if (listState.isScrollInProgress) return@LaunchedEffect
+        val visibleItems = listState.layoutInfo.visibleItemsInfo
+        for (item in visibleItems) {
+            val contactIndex = item.index - 1
+            val contact = contacts.getOrNull(contactIndex) ?: continue
+            OfficialReportBridge.reportChatListItemExposure(
+                contact = contact,
+                homeUin = uin,
+                uid = reportUid,
+                firstExposure = false,
+            )
         }
     }
 
@@ -167,21 +107,16 @@ fun ChatListScreen(
         contacts.isNotEmpty() -> {
             val listBody: @Composable BoxScope.(androidx.compose.foundation.layout.PaddingValues) -> Unit =
                 { contentPadding ->
-                    TransformingLazyColumn(
+                    ScalingLazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = listState,
                         contentPadding = contentPadding,
+                        autoCentering = AutoCenteringParams(itemIndex = 1),
                     ) {
-                        item(key = "notification-bell", contentType = "header") {
+                        item(key = "notification-bell") {
                             Button(
                                 onClick = onOpenNotificationCenter,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .transformedHeight(this, transformationSpec)
-                                    .minimumVerticalContentPadding(
-                                        ButtonDefaults.minimumVerticalListContentPadding,
-                                    ),
-                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.fillMaxWidth(),
                                 icon = {
                                     Icon(
                                         Icons.Outlined.Notifications,
@@ -197,7 +132,6 @@ fun ChatListScreen(
                             key = { contact ->
                                 "chat:${chatListExposureKey(contact) ?: contact.hashCode()}"
                             },
-                            contentType = { "chat_item" },
                         ) { contact ->
                             val exposureKey = remember(contact) { chatListExposureKey(contact) }
                             val elementParams = remember(contact, uin, reportUid) {
@@ -220,12 +154,6 @@ fun ChatListScreen(
                                     )
                                     onOpenChat(contact)
                                 },
-                                modifier = Modifier
-                                    .transformedHeight(this, transformationSpec)
-                                    .minimumVerticalContentPadding(
-                                        ButtonDefaults.minimumVerticalListContentPadding,
-                                    ),
-                                transformation = SurfaceTransformation(transformationSpec),
                             )
                         }
                     }
@@ -258,11 +186,6 @@ fun ChatListScreen(
         }
     }
 }
-
-private data class ActiveChatExposure(
-    val contact: RecentContactInfo,
-    val startedAtMs: Long,
-)
 
 private fun chatListExposureKey(contact: RecentContactInfo): String? {
     return contact.contactId.takeIf { it > 0L }?.toString()

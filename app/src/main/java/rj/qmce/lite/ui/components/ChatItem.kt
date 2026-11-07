@@ -28,19 +28,36 @@ import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import coil3.compose.AsyncImage
 import com.tencent.qqnt.kernel.nativeinterface.RecentContactInfo
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 private val UnreadBadgeShape = RoundedCornerShape(50)
 
 private val timeFormatToday = SimpleDateFormat("HH:mm", Locale.getDefault())
 private val timeFormatOther = SimpleDateFormat("MM/dd", Locale.getDefault())
+
+@Volatile
+private var cachedMidnightMillis: Long = 0L
+
+private fun getMidnightMillis(): Long {
+    val now = System.currentTimeMillis()
+    if (now >= cachedMidnightMillis + 86_400_000L || now < cachedMidnightMillis) {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        cachedMidnightMillis = cal.timeInMillis
+    }
+    return cachedMidnightMillis
+}
 
 /** Recent-contact row for the chat list (Wear M3 Button). */
 @Composable
@@ -50,7 +67,6 @@ fun ChatItem(
     reuseIdentifier: String? = null,
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    transformation: SurfaceTransformation? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val isGroup = contact.chatType == 2
@@ -111,7 +127,6 @@ fun ChatItem(
                 scheme.onSurfaceVariant
             },
         ),
-        transformation = transformation,
         contentPadding = ButtonDefaults.ButtonWithExtraLargeIconContentPadding,
         icon = {
             Box {
@@ -213,13 +228,10 @@ private fun buildMessagePreview(
 private fun formatTime(msgTime: Long): String {
     if (msgTime <= 0) return ""
     val timeMs = msgTime * 1000L
-    val now = System.currentTimeMillis()
-    val cal = Calendar.getInstance().apply { timeInMillis = timeMs }
-    val today = Calendar.getInstance().apply { timeInMillis = now }
-    val isToday = cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-        cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+    val midnight = getMidnightMillis()
+    val isToday = timeMs >= midnight && timeMs < midnight + 86_400_000L
     val formatter = if (isToday) timeFormatToday else timeFormatOther
     return synchronized(formatter) {
-        formatter.format(cal.time)
+        formatter.format(Date(timeMs))
     }
 }

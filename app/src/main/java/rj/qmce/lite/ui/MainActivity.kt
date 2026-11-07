@@ -132,6 +132,7 @@ import rj.qmce.lite.viewmodel.ContactsViewModel
 import rj.qmce.lite.viewmodel.GroupInfoViewModel
 import rj.qmce.lite.viewmodel.GroupManagementViewModel
 import rj.qmce.lite.viewmodel.MyViewModel
+import rj.qmce.lite.util.PerfTrace
 import rj.qmce.lite.viewmodel.StorageViewModel
 import rj.qmce.lite.viewmodel.PacketToolViewModel
 import rj.qmce.lite.viewmodel.QZoneViewModel
@@ -140,6 +141,8 @@ import rj.qmce.lite.viewmodel.SettingsViewModel
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PerfTrace.reset("ColdStart")
+        PerfTrace.mark("MainActivity.onCreate")
         val reportHost = FrameLayout(this).apply {
             id = View.generateViewId()
         }
@@ -258,8 +261,10 @@ private fun WearApp() {
     var isRestoringLogin by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        PerfTrace.mark("WearApp.LaunchedEffect", "Cold start LaunchedEffect started")
         val rt = withContext(Dispatchers.IO) {
             val saved = LoginPrefs.loadAccount(context)
+            PerfTrace.mark("WearApp.LaunchedEffect", "LoginPrefs.loadAccount hasSaved=${saved != null}")
             if (saved != null) {
                 withContext(Dispatchers.Main) {
                     isRestoringLogin = true
@@ -268,21 +273,18 @@ private fun WearApp() {
                 val uin = saved.uin
                 QmceApplication.beginLoginTransition()
                 val result = KernelBridge.bindLoggedInAccount(uin, saved)
+                PerfTrace.mark("WearApp.LaunchedEffect", "bindLoggedInAccount returned result=$result")
                 if (result == "ok" || result == "kernel-not-ready") {
-                    if (result == "kernel-not-ready") {
-                        Log.w(
-                            "QMCE",
-                            "bind: account ok but kernel session not ready; warming services in background",
-                        )
-                    }
                     withContext(Dispatchers.Main) {
                         val entered = QmceApplication.markLoginEstablished()
+                        PerfTrace.mark("WearApp.LaunchedEffect", "markLoginEstablished entered=$entered")
                         if (entered) {
                             loggedUin = uin
                             isLoggedIn = true
                             preferLoginQr = false
                             runtime = QmceApplication.ensureRuntime() ?: r
                             ready = true
+                            PerfTrace.mark("WearApp.LaunchedEffect", "Instant splash dismiss: ready=true, isLoggedIn=true")
                             Log.d("QMCE", "ui: cold restore enter uin=$uin fast-path")
                         } else {
                             loggedUin = ""
@@ -292,17 +294,13 @@ private fun WearApp() {
                             loginPageId = OfficialReportBridge.PageIds.LOGIN
                             QmceApplication.endLoginTransition()
                             ready = true
+                            PerfTrace.mark("WearApp.LaunchedEffect", "Cold restore aborted, ready=true")
                             Log.w(
                                 "QMCE",
                                 "ui: cold restore aborted (forced=${QmceApplication.isForcedOfflineLatched()})",
                             )
                         }
                     }
-                    // Warm up core services asynchronously in background without blocking splash dismiss
-                    KernelBridge.awaitCoreServices(
-                        timeoutMillis = 15_000,
-                        runtimeOverride = r,
-                    )
                 } else {
                     Log.e("QMCE", "bindLoggedInAccount failed: $result")
                     QmceApplication.endLoginTransition()
@@ -311,6 +309,7 @@ private fun WearApp() {
                         isLoggedIn = false
                         preferLoginQr = true
                         ready = true
+                        PerfTrace.mark("WearApp.LaunchedEffect", "Bind failed, ready=true for login")
                     }
                 }
                 r
@@ -320,6 +319,7 @@ private fun WearApp() {
                     isLoggedIn = false
                     preferLoginQr = true
                     ready = true
+                    PerfTrace.mark("WearApp.LaunchedEffect", "No saved account, ready=true for login")
                 }
                 r
             }
@@ -329,6 +329,7 @@ private fun WearApp() {
                 runtime = QmceApplication.ensureRuntime() ?: rt
             }
             ready = true
+            PerfTrace.mark("WearApp.LaunchedEffect", "Launch effect completed, entering app scaffold")
         }
     }
 

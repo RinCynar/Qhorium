@@ -1,5 +1,6 @@
 package rj.qmce.lite.kernel
 
+import rj.qmce.lite.util.PerfTrace
 import rj.qmce.lite.util.QmceLog
 import com.tencent.mobileqq.app.guard.GuardManager
 import com.tencent.mobileqq.qroute.QRoute
@@ -432,27 +433,28 @@ object KernelBridge {
 
     fun bindLoggedInAccount(uin: String, account: SimpleAccount): String {
         return runCatching {
+            PerfTrace.mark("KernelBridge.bind", "Start bindLoggedInAccount uin=$uin")
             val app = MobileQQ.sMobileQQ ?: return "MobileQQ null"
             runCatching { app.setLastLoginUin(uin) }
             runCatching { app.setSortAccountList(arrayListOf(account)) }
             val runtime = QmceApplication.ensureRuntime(app)
+            PerfTrace.mark("KernelBridge.bind", "ensureRuntime complete, isLogin=${runtime?.isLogin()}")
             QmceLog.d(
                 TAG,
                 "bind: runtime=$runtime, isLogin=${runtime?.isLogin()}, uin=${runtime?.currentUin}"
             )
             runCatching { runtime?.login(account) }
             runCatching { runtime?.setLogined() }
-            QmceLog.d(
-                TAG,
-                "bind: after setLogined, isLogin=${runtime?.isLogin()}, uin=${runtime?.currentUin}"
-            )
+            PerfTrace.mark("KernelBridge.bind", "runtime.login and setLogined called")
 
             if (!initialModuleInjected) initialModuleInjected = injectInitialModule()
             if (!nativeKernelLoaded) nativeKernelLoaded = loadNativeKernel()
             if (initialModuleInjected) reinitWrapperEngineConfig()
             if (!accountModuleInjected) accountModuleInjected = injectSAccountModule()
+            PerfTrace.mark("KernelBridge.bind", "Native modules injected")
 
             checkTicketStatus(runtime, uin)
+            PerfTrace.mark("KernelBridge.bind", "Tickets checked")
 
             val ks = runCatching {
                 runtime?.getRuntimeService(IKernelService::class.java, "")
@@ -470,26 +472,31 @@ object KernelBridge {
                     // pinRuntime 已在上面完成，先 patch serviceContent 再 start
                     patchServiceContent(ks, actualRuntime ?: runtime)
                     startKernelSession(ks, actualRuntime)
+                    PerfTrace.mark("KernelBridge.bind", "startKernelSession called")
                 } else {
                     QmceLog.d(TAG, "bind: session already exists, initializing directly")
                     initExistingKernel(actualRuntime, ks)
+                    PerfTrace.mark("KernelBridge.bind", "initExistingKernel called")
                 }
             }
 
-            val sessionOk = waitForSession(ks, actualRuntime)
-            if (!sessionOk) {
-                QmceLog.e(
-                    TAG,
-                    "bind: wrapperSession still null after start+wait; " +
-                            "ks=$ks state=${ks?.let { kernelState(it) }}",
-                )
-            }
-            reinitializeAfterLogin(actualRuntime)
-            when {
-                areCoreServicesReady() -> "ok"
-                // 账号已绑定、票可用，但 NT session/服务未齐；勿清 LoginPrefs
-                else -> "kernel-not-ready"
-            }
+            // CRITICAL DECOUPLING:
+            // Do NOT block the caller on waitForSession and reinitializeAfterLogin (which take 70+ seconds!).
+            // Instead, run them asynchronously in a background daemon thread so MainActivity can enter MainScreen immediately.
+            Thread({
+                try {
+                    PerfTrace.mark("KernelBackgroundInit", "Thread started: waitForSession")
+                    val sessionOk = waitForSession(ks, actualRuntime)
+                    PerfTrace.mark("KernelBackgroundInit", "waitForSession ended sessionOk=$sessionOk")
+                    reinitializeAfterLogin(actualRuntime)
+                    PerfTrace.mark("KernelBackgroundInit", "reinitializeAfterLogin completed, coreReady=${areCoreServicesReady()}")
+                } catch (t: Throwable) {
+                    QmceLog.e(TAG, "KernelBackgroundInit failed", t)
+                }
+            }, "QMCE-BackgroundKernelInit").apply { isDaemon = true }.start()
+
+            PerfTrace.mark("KernelBridge.bind", "Background init dispatched, returning immediately")
+            "ok"
         }.getOrElse { "failed: ${it.javaClass.simpleName}: ${it.message}" }
     }
 
