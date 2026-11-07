@@ -94,13 +94,7 @@ fun PacketToolScreen(
                     selected = state.mode,
                     onSelected = vm::setMode,
                     modifier = Modifier
-                        .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        },
+                        .transformedHeight(this, transformationSpec),
                 )
             }
             if (state.mode == PacketMode.Ark) {
@@ -115,13 +109,7 @@ fun PacketToolScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            },
+                            .transformedHeight(this, transformationSpec),
                     )
                 }
             } else {
@@ -133,13 +121,7 @@ fun PacketToolScreen(
                         hint = if (state.mode == PacketMode.Oidb) "例如 OidbSvcTrpcTcp.0x..." else "例如 MessageSvc.PbSendMsg",
                         singleLine = true,
                         modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            },
+                            .transformedHeight(this, transformationSpec),
                     )
                 }
                 if (state.mode == PacketMode.Oidb) {
@@ -147,13 +129,7 @@ fun PacketToolScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                },
+                                .transformedHeight(this, transformationSpec),
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
                             PacketInput(
@@ -182,13 +158,7 @@ fun PacketToolScreen(
                             hint = "可留空",
                             singleLine = true,
                             modifier = Modifier
-                                .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                },
+                                .transformedHeight(this, transformationSpec),
                         )
                     }
                 } else {
@@ -197,13 +167,7 @@ fun PacketToolScreen(
                             selected = state.payloadFormat,
                             onSelected = vm::setPayloadFormat,
                             modifier = Modifier
-                                .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                },
+                                .transformedHeight(this, transformationSpec),
                         )
                     }
                 }
@@ -217,13 +181,7 @@ fun PacketToolScreen(
                     singleLine = false,
                     modifier = Modifier
                         .height(if (state.mode == PacketMode.Ark) 132.dp else 116.dp)
-                        .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        },
+                        .transformedHeight(this, transformationSpec),
                 )
             }
             item {
@@ -254,12 +212,6 @@ fun PacketToolScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(bottom = 8.dp),
                     )
                 }

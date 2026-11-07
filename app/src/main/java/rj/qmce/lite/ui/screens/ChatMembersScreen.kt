@@ -100,12 +100,6 @@ fun ChatMembersScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                         .padding(horizontal = 14.dp, vertical = 9.dp),
@@ -135,13 +129,7 @@ fun ChatMembersScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            },
+                            .transformedHeight(this, transformationSpec),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(

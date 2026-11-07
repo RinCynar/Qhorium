@@ -208,13 +208,7 @@ fun LocalImagePickerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(96.dp)
-                                    .transformedHeight(this, transformationSpec)
-                                    .graphicsLayer {
-                                        with(SurfaceTransformation(transformationSpec)) {
-                                            applyContainerTransformation()
-                                            applyContentTransformation()
-                                        }
-                                    },
+                                    .transformedHeight(this, transformationSpec),
                                 colors = CardDefaults.cardColors(
                                     containerColor = scheme.surfaceContainer,
                                 ),

@@ -133,12 +133,6 @@ fun QZoneCommentScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .graphicsLayer {
-                                        with(SurfaceTransformation(transformationSpec)) {
-                                            applyContainerTransformation()
-                                            applyContentTransformation()
-                                        }
-                                    }
                                     .padding(horizontal = 10.dp, vertical = 3.dp)
                                     .background(scheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
                                     .clickable {
@@ -196,12 +190,6 @@ fun QZoneCommentScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                         .background(scheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -233,12 +221,6 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
         modifier = Modifier
             .fillMaxWidth()
             .transformedHeight(this, transformationSpec)
-            .graphicsLayer {
-                with(SurfaceTransformation(transformationSpec)) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .padding(horizontal = 18.dp, vertical = 12.dp),
     )
 }

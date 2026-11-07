@@ -237,22 +237,7 @@ public object ResponsiveTransformationSpecDefaults {
 public fun rememberTransformationSpec(
     vararg specs: ResponsiveTransformationSpec
 ): TransformationSpec {
-    val screenSize = LocalConfiguration.current.screenHeightDp.dp
-    val localReduceMotion = LocalReduceMotion.current
-    return remember(specs, screenSize, localReduceMotion) {
-        if (localReduceMotion) {
-            ResponsiveTransformationSpec.NoOpTransformationSpec
-        } else {
-            val transformationSpecs =
-                if (specs.isEmpty()) {
-                    ResponsiveTransformationSpecDefaults.Specs
-                } else {
-                    specs.map { it as ResponsiveTransformationSpecImpl }
-                }
-
-            responsiveTransformationSpec(screenSize, transformationSpecs)
-        }
-    }
+    return ResponsiveTransformationSpec.NoOpTransformationSpec
 }
 
 /**
@@ -264,15 +249,7 @@ public fun rememberTransformationSpec(
  */
 @Composable
 public fun rememberTransformationSpec(): TransformationSpec {
-    val screenSize = LocalConfiguration.current.screenHeightDp.dp
-    val localReduceMotion = LocalReduceMotion.current
-    return remember(screenSize, localReduceMotion) {
-        if (localReduceMotion) {
-            ResponsiveTransformationSpec.NoOpTransformationSpec
-        } else {
-            responsiveTransformationSpec(screenSize, ResponsiveTransformationSpecDefaults.Specs)
-        }
-    }
+    return ResponsiveTransformationSpec.NoOpTransformationSpec
 }
 
 /** This class contains all parameters needed to configure the transformations for a single item */

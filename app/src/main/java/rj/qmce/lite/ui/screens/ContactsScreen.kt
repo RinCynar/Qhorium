@@ -187,12 +187,6 @@ fun ContactsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .transformedHeight(this, transformationSpec)
-                                    .graphicsLayer {
-                                        with(SurfaceTransformation(transformationSpec)) {
-                                            applyContainerTransformation()
-                                            applyContentTransformation()
-                                        }
-                                    }
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -496,12 +490,6 @@ private fun ContactSearchScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                         .background(scheme.surfaceContainerHigh, CircleShape)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -652,12 +640,6 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
         modifier = Modifier
             .fillMaxWidth()
             .transformedHeight(this, transformationSpec)
-            .graphicsLayer {
-                with(SurfaceTransformation(transformationSpec)) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .padding(horizontal = 18.dp, vertical = 16.dp),
     )
 }

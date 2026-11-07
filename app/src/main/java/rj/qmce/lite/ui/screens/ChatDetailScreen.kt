@@ -722,26 +722,14 @@ fun ChatDetailScreen(
                                             ChatDateDivider(
                                                 item.label,
                                                 modifier = Modifier
-                                                    .transformedHeight(this, transformationSpec)
-                                                    .graphicsLayer {
-                                                        with(SurfaceTransformation(transformationSpec)) {
-                                                            applyContainerTransformation()
-                                                            applyContentTransformation()
-                                                        }
-                                                    },
+                                                    .transformedHeight(this, transformationSpec),
                                             )
                                         }
                                         is ChatTimelineItem.TimeDivider -> {
                                             ChatDateDivider(
                                                 item.label,
                                                 modifier = Modifier
-                                                    .transformedHeight(this, transformationSpec)
-                                                    .graphicsLayer {
-                                                        with(SurfaceTransformation(transformationSpec)) {
-                                                            applyContainerTransformation()
-                                                            applyContentTransformation()
-                                                        }
-                                                    },
+                                                    .transformedHeight(this, transformationSpec),
                                             )
                                         }
                                         is ChatTimelineItem.Message -> {
@@ -750,13 +738,7 @@ fun ChatDetailScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .transformedHeight(this, transformationSpec)
-                                                    .graphicsLayer {
-                                                        with(SurfaceTransformation(transformationSpec)) {
-                                                            applyContainerTransformation()
-                                                            applyContentTransformation()
-                                                        }
-                                                    },
+                                                    .transformedHeight(this, transformationSpec),
                                             ) {
                                                 MessageBubble(
                                                     message = item.message,
@@ -1260,12 +1242,6 @@ private fun CallPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 18.dp, vertical = 12.dp),
                 )
             }
@@ -1280,12 +1256,6 @@ private fun CallPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 18.dp, vertical = 4.dp),
                 )
             }
@@ -1294,13 +1264,7 @@ private fun CallPage(
                     onClick = { onRequestCall(CallMode.Voice) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        },
+                        .transformedHeight(this, transformationSpec),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1316,13 +1280,7 @@ private fun CallPage(
                     onClick = { onRequestCall(CallMode.Video) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        },
+                        .transformedHeight(this, transformationSpec),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1383,12 +1341,6 @@ private fun MultiSelectActionsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 18.dp, vertical = 10.dp),
                 )
             }

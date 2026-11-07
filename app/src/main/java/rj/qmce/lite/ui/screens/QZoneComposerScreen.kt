@@ -106,12 +106,6 @@ fun QZoneComposerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 10.dp)
                         .defaultMinSize(minHeight = 80.dp)
                         .background(scheme.surfaceContainerHigh, RoundedCornerShape(20.dp))

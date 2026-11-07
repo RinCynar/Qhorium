@@ -81,13 +81,7 @@ fun MyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .minimumVerticalContentPadding(TextDefaults.minimumTopListContentPadding)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        },
+                        .minimumVerticalContentPadding(TextDefaults.minimumTopListContentPadding),
                 ) {
                     ProfileHeader(
                         profile = profile,
@@ -160,12 +154,6 @@ fun MyScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 16.dp, vertical = 5.dp),
                 )
             }
@@ -232,12 +220,6 @@ fun MyScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 16.dp, vertical = 6.dp),
                     )
                 }

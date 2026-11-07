@@ -94,12 +94,6 @@ fun QmceEmptyOrErrorState(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 8.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {

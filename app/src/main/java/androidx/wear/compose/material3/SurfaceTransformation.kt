@@ -100,35 +100,7 @@ internal val NoOpSurfaceTransformation: SurfaceTransformation =
             painter: Painter,
             shape: Shape,
             border: BorderStroke?,
-        ): Painter =
-            object : Painter() {
-                override val intrinsicSize: Size
-                    get() = Size.Unspecified
-
-                private var lastUsedSize = Size.Unspecified
-                private val cachedPath: Path = Path()
-
-                override fun DrawScope.onDraw() {
-                    if (size != lastUsedSize) {
-                        cachedPath.reset()
-                        cachedPath.addOutline(
-                            shape.createOutline(size, layoutDirection, this@onDraw)
-                        )
-                        lastUsedSize = size
-                    }
-
-                    clipPath(path = cachedPath) {
-                        if (border != null) {
-                            drawOutline(
-                                outline = shape.createOutline(size, layoutDirection, this@onDraw),
-                                brush = border.brush,
-                                style = Stroke(border.width.toPx()),
-                            )
-                        }
-                        with(painter) { draw(size) }
-                    }
-                }
-            }
+        ): Painter = painter
 
         override fun GraphicsLayerScope.applyContentTransformation() {}
 
@@ -144,12 +116,7 @@ internal val NoOpSurfaceTransformation: SurfaceTransformation =
 @Stable
 public fun TransformingLazyColumnItemScope.SurfaceTransformation(
     spec: TransformationSpec
-): SurfaceTransformation =
-    if (spec == NoOpTransformationSpec) {
-        NoOpSurfaceTransformation
-    } else {
-        SurfaceTransformationImpl(spec, this)
-    }
+): SurfaceTransformation = NoOpSurfaceTransformation
 
 private class SurfaceTransformationImpl(
     private val spec: TransformationSpec,

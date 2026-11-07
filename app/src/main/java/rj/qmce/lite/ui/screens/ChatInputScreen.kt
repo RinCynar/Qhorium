@@ -610,12 +610,6 @@ fun ChatInputScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 14.dp, vertical = 2.dp)
                             .background(scheme.primaryContainer, RoundedCornerShape(8.dp)),
                         verticalAlignment = Alignment.CenterVertically,
@@ -638,12 +632,6 @@ fun ChatInputScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 14.dp, vertical = 2.dp)
                             .background(scheme.primaryContainer, RoundedCornerShape(8.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -678,12 +666,6 @@ fun ChatInputScreen(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 14.dp, vertical = 2.dp),
                     )
                 }
@@ -741,12 +723,6 @@ fun ChatInputScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 10.dp)
                         .defaultMinSize(minHeight = 72.dp)
                         .background(scheme.surfaceContainerHigh, RoundedCornerShape(20.dp))

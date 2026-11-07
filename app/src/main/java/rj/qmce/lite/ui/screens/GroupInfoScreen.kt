@@ -376,12 +376,6 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
             modifier = Modifier
                 .fillMaxWidth()
                 .transformedHeight(this, transformationSpec)
-                .graphicsLayer {
-                    with(SurfaceTransformation(transformationSpec)) {
-                        applyContainerTransformation()
-                        applyContentTransformation()
-                    }
-                }
                 .padding(horizontal = 16.dp, vertical = 5.dp),
         ) {
             Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)

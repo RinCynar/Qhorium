@@ -68,12 +68,6 @@ fun AtMemberPickerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                         .background(
                             scheme.surfaceContainerHigh,
@@ -150,12 +144,6 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
         modifier = Modifier
             .fillMaxWidth()
             .transformedHeight(this, transformationSpec)
-            .graphicsLayer {
-                with(SurfaceTransformation(transformationSpec)) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .padding(horizontal = 18.dp, vertical = 16.dp),
     )
 }

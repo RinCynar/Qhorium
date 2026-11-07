@@ -127,12 +127,6 @@ internal fun ForwardDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                }
                                 .padding(horizontal = 24.dp, vertical = 8.dp),
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.titleSmall,
@@ -148,13 +142,7 @@ internal fun ForwardDetailScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                },
+                                .transformedHeight(this, transformationSpec),
                         ) {
                             MessageBubble(
                                 message = message,

@@ -338,12 +338,6 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
         modifier = Modifier
             .fillMaxWidth()
             .transformedHeight(this, transformationSpec)
-            .graphicsLayer {
-                with(SurfaceTransformation(transformationSpec)) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .minimumVerticalContentPadding(ListHeaderDefaults.minimumTopListContentPadding)
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {

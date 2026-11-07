@@ -102,7 +102,7 @@ public interface TransformationSpec {
 public fun Modifier.transformedHeight(
     scope: TransformingLazyColumnItemScope,
     transformationSpec: TransformationSpec,
-): Modifier = with(scope) { transformedHeight(transformationSpec::getTransformedHeight) }
+): Modifier = this
 
 /** Provides additional information to the painter inside [TransformationSpec]. */
 public interface TransformedContainerPainterScope {

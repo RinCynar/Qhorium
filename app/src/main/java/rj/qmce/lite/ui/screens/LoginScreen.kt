@@ -244,12 +244,6 @@ private fun WelcomeGuide(
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(
-                    "Wear OS Edition",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
             }
         }
     }

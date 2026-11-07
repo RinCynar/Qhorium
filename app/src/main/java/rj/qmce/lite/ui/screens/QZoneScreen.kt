@@ -155,12 +155,6 @@ fun QZoneScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                }
                                 .padding(vertical = 16.dp),
                             horizontalArrangement = Arrangement.Center,
                         ) {
@@ -229,12 +223,6 @@ fun QZoneScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
@@ -299,12 +287,6 @@ private fun TransformingLazyColumnItemScope.QZoneListNotice(
         modifier = Modifier
             .fillMaxWidth()
             .transformedHeight(this, transformationSpec)
-            .graphicsLayer {
-                with(SurfaceTransformation(transformationSpec)) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .padding(horizontal = 12.dp, vertical = verticalPadding),
     )
 }

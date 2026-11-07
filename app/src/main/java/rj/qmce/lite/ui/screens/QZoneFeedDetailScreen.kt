@@ -135,12 +135,6 @@ fun QZoneFeedDetailScreen(
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
                         .minimumVerticalContentPadding(TextDefaults.minimumTopListContentPadding)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 14.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -182,12 +176,6 @@ fun QZoneFeedDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
                 }
@@ -200,12 +188,6 @@ fun QZoneFeedDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                 }
@@ -302,12 +284,6 @@ fun QZoneFeedDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
@@ -403,12 +379,6 @@ fun QZoneFeedDetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
@@ -421,12 +391,6 @@ fun QZoneFeedDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .transformedHeight(this, transformationSpec)
-                            .graphicsLayer {
-                                with(SurfaceTransformation(transformationSpec)) {
-                                    applyContainerTransformation()
-                                    applyContentTransformation()
-                                }
-                            }
                             .padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
@@ -437,12 +401,6 @@ fun QZoneFeedDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                }
                                 .padding(horizontal = 12.dp, vertical = 3.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(scheme.surfaceContainerHigh)

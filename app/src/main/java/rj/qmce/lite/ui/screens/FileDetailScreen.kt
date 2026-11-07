@@ -83,12 +83,6 @@ internal fun FileDetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
@@ -166,12 +160,6 @@ internal fun FileDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .transformedHeight(this, transformationSpec)
-                                .graphicsLayer {
-                                    with(SurfaceTransformation(transformationSpec)) {
-                                        applyContainerTransformation()
-                                        applyContentTransformation()
-                                    }
-                                }
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
@@ -228,12 +216,6 @@ private fun FileDetailInfoRow(
     androidx.compose.foundation.layout.Column(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                with(transformation) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {

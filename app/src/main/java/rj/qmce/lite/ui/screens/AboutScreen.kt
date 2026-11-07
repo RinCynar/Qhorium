@@ -54,7 +54,6 @@ fun AboutScreen(
             item(key = "about-app-name") {
                 AboutInfoBlock(
                     title = "Qhorium",
-                    detail = "Wear OS Edition",
                     modifier = Modifier.transformedHeight(this, transformationSpec),
                     transformation = SurfaceTransformation(transformationSpec),
                 )
@@ -90,12 +89,6 @@ fun AboutScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
@@ -140,12 +133,6 @@ fun AboutScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec)
-                        .graphicsLayer {
-                            with(SurfaceTransformation(transformationSpec)) {
-                                applyContainerTransformation()
-                                applyContentTransformation()
-                            }
-                        }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                 )
             }
@@ -156,7 +143,7 @@ fun AboutScreen(
 @Composable
 private fun AboutInfoBlock(
     title: String,
-    detail: String,
+    detail: String? = null,
     modifier: Modifier,
     transformation: SurfaceTransformation,
 ) {
@@ -164,12 +151,6 @@ private fun AboutInfoBlock(
     androidx.compose.foundation.layout.Column(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                with(transformation) {
-                    applyContainerTransformation()
-                    applyContentTransformation()
-                }
-            }
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
@@ -179,11 +160,13 @@ private fun AboutInfoBlock(
             textAlign = TextAlign.Center,
             color = scheme.onSurface,
         )
-        Text(
-            detail,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-            color = scheme.onSurfaceVariant,
-        )
+        if (!detail.isNullOrBlank()) {
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                color = scheme.onSurfaceVariant,
+            )
+        }
     }
 }

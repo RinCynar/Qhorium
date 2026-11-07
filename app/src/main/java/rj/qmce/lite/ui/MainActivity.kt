@@ -1378,11 +1378,6 @@ private fun SplashScreen(restoringLogin: Boolean = false) {
                 style = androidx.wear.compose.material3.MaterialTheme.typography.titleSmall,
                 color = scheme.onBackground,
             )
-            androidx.wear.compose.material3.Text(
-                text = "Wear OS Edition",
-                style = androidx.wear.compose.material3.MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
-            )
             Spacer(modifier = Modifier.height(12.dp))
             androidx.wear.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.size(36.dp),
