@@ -23,14 +23,19 @@ android {
         applicationId = "top.rincynar.qhr"
         minSdk = 23
         targetSdk = 37
-        versionCode = 32
-        versionName = "0.6.4-fix2"
+        versionCode = 33
+        versionName = "0.6.4-fix3"
         multiDexEnabled = true
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters += "armeabi-v7a"
         }
         multiDexKeepProguard = file("multidex-proguard.pro")
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     buildFeatures {

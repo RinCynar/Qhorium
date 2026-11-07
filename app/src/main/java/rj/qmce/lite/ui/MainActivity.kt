@@ -351,12 +351,6 @@ private fun WearApp() {
     }
 
     var currentNavRoute by remember { mutableStateOf<String?>(null) }
-    val unreadBadgeText = if (isLoggedIn) {
-        val chatDetailVm: ChatDetailViewModel = viewModel()
-        chatDetailVm.unreadBadgeText.collectAsState().value
-    } else {
-        null
-    }
 
     LaunchedEffect(isLoggedIn) {
         if (!isLoggedIn) currentNavRoute = null
@@ -405,46 +399,17 @@ private fun WearApp() {
         edgeSafeAreaEnabled = settings.edgeSafeAreaEnabled,
         edgeSafeAreaScale = settings.edgeSafeAreaScale,
     ) {
-        val themeColors = androidx.wear.compose.material3.MaterialTheme.colorScheme
         AppScaffold(
             timeText = {
-                if (settings.showTimeText) {
-                    val showUnreadBadge = isLoggedIn &&
-                        currentNavRoute == "chat" &&
-                        !unreadBadgeText.isNullOrBlank()
-                    val showStatus = settings.showOnlineStatus && isLoggedIn && onlineKnown && !showUnreadBadge
-                    val statusColor = if (OnlineStatus.isOnline()) {
-                        themeColors.tertiary
-                    } else {
-                        themeColors.onSurfaceVariant
-                    }
-                    val statusIcon = onlineTermKind?.let(::termKindIcon)
-                        ?: Icons.Default.PhoneAndroid
-                    TimeText(
-                        maxSweepAngle = if (showStatus || showUnreadBadge) 140f else TimeTextDefaults.MaxSweepAngle,
-                        content = { time ->
-                            timeTextCurvedText(time)
-                            if (showUnreadBadge) {
-                                timeTextSeparator()
-                                curvedText(
-                                    text = unreadBadgeText.orEmpty(),
-                                    color = themeColors.primary,
-                                )
-                            } else if (showStatus) {
-                                timeTextSeparator()
-                                curvedComposable {
-                                    Icon(
-                                        imageVector = statusIcon,
-                                        contentDescription = onlineDesc
-                                            ?: if (OnlineStatus.isOnline()) "在线" else "离线",
-                                        tint = statusColor,
-                                        modifier = Modifier.size(12.dp),
-                                    )
-                                }
-                            }
-                        },
-                    )
-                }
+                QmceMainTimeText(
+                    isLoggedIn = isLoggedIn,
+                    currentNavRoute = currentNavRoute,
+                    showTimeText = settings.showTimeText,
+                    showOnlineStatus = settings.showOnlineStatus,
+                    onlineKnown = onlineKnown,
+                    onlineDesc = onlineDesc,
+                    onlineTermKind = onlineTermKind,
+                )
             }
         ) {
             if (isLoggedIn) {
@@ -453,7 +418,6 @@ private fun WearApp() {
                 val chatSettingsVm: ChatSettingsViewModel = viewModel()
                 val groupInfoVm: GroupInfoViewModel = viewModel()
                 val groupManagementVm: GroupManagementViewModel = viewModel()
-                val groupManagementState by groupManagementVm.state.collectAsState()
                 val chatListVm: ChatListViewModel = viewModel()
                 val contactsVm: ContactsViewModel = viewModel()
                 val qZoneVm: QZoneViewModel = viewModel()
@@ -870,6 +834,7 @@ private fun WearApp() {
                         }
                     }
                     composable("chatSettings") {
+                        val groupManagementState by groupManagementVm.state.collectAsState()
                         val contact = selectedContact
                         if (contact != null) {
                             val peerUin =
@@ -1423,6 +1388,62 @@ private fun termKindIcon(kind: OnlineStatus.TermKind): ImageVector = when (kind)
     OnlineStatus.TermKind.Tablet -> Icons.Default.Tablet
     OnlineStatus.TermKind.Watch -> Icons.Default.Watch
     OnlineStatus.TermKind.Unknown -> Icons.Default.PhoneAndroid
+}
+
+@Composable
+private fun QmceMainTimeText(
+    isLoggedIn: Boolean,
+    currentNavRoute: String?,
+    showTimeText: Boolean,
+    showOnlineStatus: Boolean,
+    onlineKnown: Boolean,
+    onlineDesc: String?,
+    onlineTermKind: OnlineStatus.TermKind?,
+) {
+    if (!showTimeText) return
+    val themeColors = androidx.wear.compose.material3.MaterialTheme.colorScheme
+    val unreadBadgeText = if (isLoggedIn && currentNavRoute == "chat") {
+        val chatDetailVm: ChatDetailViewModel = viewModel()
+        chatDetailVm.unreadBadgeText.collectAsState().value
+    } else {
+        null
+    }
+    val showUnreadBadge = isLoggedIn &&
+        currentNavRoute == "chat" &&
+        !unreadBadgeText.isNullOrBlank()
+    val showStatus = showOnlineStatus && isLoggedIn && onlineKnown && !showUnreadBadge
+    val statusColor = if (OnlineStatus.isOnline()) {
+        themeColors.tertiary
+    } else {
+        themeColors.onSurfaceVariant
+    }
+    val statusIcon = onlineTermKind?.let(::termKindIcon)
+        ?: Icons.Default.PhoneAndroid
+
+    TimeText(
+        maxSweepAngle = if (showStatus || showUnreadBadge) 140f else TimeTextDefaults.MaxSweepAngle,
+        content = { time ->
+            timeTextCurvedText(time)
+            if (showUnreadBadge) {
+                timeTextSeparator()
+                curvedText(
+                    text = unreadBadgeText.orEmpty(),
+                    color = themeColors.primary,
+                )
+            } else if (showStatus) {
+                timeTextSeparator()
+                curvedComposable {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = onlineDesc
+                            ?: if (OnlineStatus.isOnline()) "在线" else "离线",
+                        tint = statusColor,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+        },
+    )
 }
 
 private fun hasQZoneGalleryAccess(context: android.content.Context): Boolean = when {

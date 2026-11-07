@@ -37,16 +37,12 @@ fun QmceTheme(
     val colorScheme = remember(context) {
         dynamicColorScheme(context) ?: QmceBlueColorScheme
     }
-    val navBackStackEntry by navController?.currentBackStackEntryAsState()
-        ?: remember { androidx.compose.runtime.mutableStateOf(null) }
-    val canGoBack = remember(navBackStackEntry) {
-        navController?.previousBackStackEntry != null
-    }
-    val backHandlerEnabled = remember(canGoBack) {
-        canGoBack && (AppConfig.isMiWatch5Mode || Build.VERSION.SDK_INT < 35)
-    }
-    if (navController != null) {
-        BackHandler(enabled = backHandlerEnabled && AppConfig.isMiWatch5Mode) {
+    if (navController != null && AppConfig.isMiWatch5Mode) {
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val canGoBack = remember(navBackStackEntry) {
+            navController.previousBackStackEntry != null
+        }
+        BackHandler(enabled = canGoBack) {
             navController.popBackStack()
         }
     }
