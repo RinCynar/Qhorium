@@ -28,8 +28,8 @@ class QZoneViewModel : ViewModel() {
 
         // A refresh can return "success" while the first page has not arrived yet (slow
         // backend). Retry a few times before settling on an empty space.
-        private const val MAX_EMPTY_REFRESH_RETRIES = 3
-        private const val EMPTY_REFRESH_RETRY_DELAY_MS = 4_000L
+        private const val MAX_EMPTY_REFRESH_RETRIES = 1
+        private const val EMPTY_REFRESH_RETRY_DELAY_MS = 2_000L
     }
 
     data class FeedItem(
@@ -152,17 +152,8 @@ class QZoneViewModel : ViewModel() {
     }
 
     private fun scheduleFeedRetry(reason: String) {
-        synchronized(feedRetryLock) {
-            if (feedRetryJob?.isActive == true) return
-            feedRetryJob = viewModelScope.launch(Dispatchers.IO) {
-                delay(2_000)
-                synchronized(feedRetryLock) { feedRetryJob = null }
-                if (!_loading.value && !loaded && _feeds.value.isEmpty()) {
-                    Log.d(TAG, "retrying qzone feed load, reason=$reason")
-                    loadFeeds(forceRefresh = true)
-                }
-            }
-        }
+        // Disabled background auto-retry loop: do not auto-trigger loadFeeds which causes infinite spinning
+        Log.d(TAG, "feed load error, awaiting user retry: reason=$reason")
     }
 
     private fun cancelFeedRetry() {
@@ -548,22 +539,26 @@ class QZoneViewModel : ViewModel() {
                             }
                         }
                     }
-                    QZoneFeedRepository.RefreshResult.Cancelled -> Unit
+                    QZoneFeedRepository.RefreshResult.Cancelled -> {
+                        finishFeedLoad(generation, success = false, preserveStatus = true)
+                    }
                     is QZoneFeedRepository.RefreshResult.Unavailable -> {
                         _statusText.value = result.reason
                         _feedError.value = result.reason
                         finishFeedLoad(generation, success = false, preserveStatus = true)
-                        scheduleFeedRetry("unavailable-${result.reason}")
                     }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "loadFeeds error", e)
-                _statusText.value = "加载失败: ${e.message}"
-                _feedError.value = _statusText.value
+                val msg = "加载失败: ${e.message ?: "网络超时"}"
+                _statusText.value = msg
+                _feedError.value = msg
                 finishFeedLoad(generation, success = false, preserveStatus = true)
-                scheduleFeedRetry("exception-${e.javaClass.simpleName}")
             } finally {
+                if (isCurrentFeedLoad(generation)) {
+                    _loading.value = false
+                }
                 synchronized(feedLoadLock) {
                     if (feedLoadGeneration == generation) activeFeedLoad = null
                 }

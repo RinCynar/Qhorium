@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import coil3.request.crossfade
 import com.tencent.mobileqq.qroute.QRoute
 import com.tencent.qqnt.avatar.IAvatarLoaderApi
 import kotlinx.coroutines.launch
+import rj.qmce.lite.QmceApplication
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
 import rj.qmce.lite.fix.WatchAvatarViews
@@ -205,6 +207,16 @@ fun ContactsScreen(
                                         Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序")
                                     },
                                     label = { Text("排序") },
+                                )
+                                CompactButton(
+                                    onClick = {
+                                        val activeRt = QmceApplication.ensureRuntime()
+                                        vm.loadBuddies(activeRt, forceRefresh = true)
+                                    },
+                                    icon = {
+                                        Icon(Icons.Default.Refresh, contentDescription = "刷新联系人")
+                                    },
+                                    label = { Text("刷新") },
                                 )
                             }
                         }

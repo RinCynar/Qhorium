@@ -230,7 +230,7 @@ class ContactsViewModel : ViewModel() {
                 synchronized(loadLock) { retryJob = null }
                 if (!_loading.value && !loaded) {
                     Log.d(TAG, "retrying buddy list, reason=$reason")
-                    loadBuddies(runtime, forceRefresh = true)
+                    loadBuddies(runtime, forceRefresh = false)
                 }
             }
         }
@@ -314,9 +314,9 @@ class ContactsViewModel : ViewModel() {
                     errMsg: String?,
                     list: java.util.ArrayList<BuddyListCategory>?,
                 ) {
-                    Log.d(TAG, "getBuddyListV2: code=$code, count=${list?.size}")
+                    Log.d(TAG, "getBuddyListV2: code=$code, count=${list?.size}, forceRefresh=$forceRefresh")
                     if (code == 0 && !list.isNullOrEmpty()) {
-                        onBuddyCategories(list, buddySvc, runtime)
+                        onBuddyCategories(list, buddySvc, runtime, forceRefresh)
                     } else {
                         fallbackBuddyList(buddySvc, runtime, "v2-empty-or-error-$code")
                     }
@@ -335,12 +335,13 @@ class ContactsViewModel : ViewModel() {
         list: java.util.ArrayList<BuddyListCategory>,
         buddySvc: IBuddyService,
         runtime: AppRuntime?,
+        forceRefresh: Boolean = false,
     ) {
         loaded = true
         val generation = loadGeneration.incrementAndGet()
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                launch { loadGroups(forceRefresh = true) }
+                launch { loadGroups(forceRefresh = forceRefresh) }
                 processCategoriesIncrementally(list, buddySvc, generation)
             }.onFailure { error ->
                 loaded = false

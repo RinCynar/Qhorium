@@ -105,6 +105,9 @@ class QZoneFeedRepository {
                     lastFingerprint = fingerprint
                     Log.d(TAG, "feed poll round=${round + 1} size=${fresh.size}")
                 }
+                if (round >= 4) {
+                    return RefreshResult.Success
+                }
             }
         }
         val finalSize = feedManager.n()?.size ?: 0
@@ -198,10 +201,10 @@ class QZoneFeedRepository {
 
     private suspend fun awaitFeedService(isCurrent: () -> Boolean): QZoneFeedService? {
         ensureFeedService()?.let { return it }
-        repeat(50) {
+        repeat(16) {
             if (!isCurrent()) return null
             ensureFeedService()?.let { return it }
-            delay(300)
+            delay(250)
         }
         return ensureFeedService() ?: run {
             Log.w(TAG, "QZoneFeedService still unavailable after wait")
@@ -325,10 +328,10 @@ class QZoneFeedRepository {
         private const val TAG = "QMCE-QZoneFeed"
         private const val FEED_EVENT_UPDATED = 1
         private const val FEED_EVENT_REFRESHED = 4
-        private const val POLL_COUNT = 60
+        private const val POLL_COUNT = 24
         private const val POLL_INTERVAL_MILLIS = 500L
-        private const val FORCE_REFRESH_AFTER_ROUND = 30
-        private const val READY_POLL_COUNT = 80
+        private const val FORCE_REFRESH_AFTER_ROUND = 6
+        private const val READY_POLL_COUNT = 20
         private const val READY_POLL_INTERVAL_MILLIS = 250L
     }
 }

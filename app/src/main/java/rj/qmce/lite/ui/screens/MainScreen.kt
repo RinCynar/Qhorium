@@ -101,7 +101,7 @@ fun MainScreen(
         when (pagerState.currentPage) {
             1 -> if (!contactsLoaded) {
                 contactsLoaded = true
-                contactsVm.loadBuddies(activeRuntime, forceRefresh = true)
+                contactsVm.loadBuddies(activeRuntime, forceRefresh = false)
             }
             2 -> {
                 val failedEmpty = qZoneVm.feeds.value.isEmpty() &&
@@ -109,7 +109,7 @@ fun MainScreen(
                     !qZoneVm.loading.value
                 if (!qzoneLoaded || failedEmpty) {
                     qzoneLoaded = true
-                    qZoneVm.loadFeeds(forceRefresh = true)
+                    qZoneVm.loadFeeds(forceRefresh = false)
                 }
             }
         }
