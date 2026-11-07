@@ -861,6 +861,26 @@ object KernelBridge {
                         .invoke(ticketSvc, uin, 262144)
                 }.getOrNull()
                 QmceLog.d(TAG, "bind: localTicket=$localTicket")
+
+                val localPskey = runCatching {
+                    ticketSvc.javaClass.getMethod("getLocalPskey", String::class.java, String::class.java)
+                        .invoke(ticketSvc, uin, "qzone.qq.com") as? String
+                }.getOrNull()
+                QmceLog.d(TAG, "bind: QZone localPskey exists=${!localPskey.isNullOrBlank()}")
+                if (localPskey.isNullOrBlank()) {
+                    val ticketManager = runtime?.getManager(mqq.app.AppRuntime.TICKET_MANAGER) as? mqq.manager.TicketManager
+                    ticketManager?.getPskey(uin, 16L, arrayOf("qzone.qq.com", "qzone.com"), object : oicq.wlogin_sdk.request.WtTicketPromise {
+                        override fun Done(t: oicq.wlogin_sdk.request.Ticket?) {
+                            QmceLog.d(TAG, "bind: QZone pskey acquired on startup")
+                        }
+                        override fun Failed(e: oicq.wlogin_sdk.tools.ErrMsg?) {
+                            QmceLog.w(TAG, "bind: QZone pskey failed: ${e?.message}")
+                        }
+                        override fun Timeout(e: oicq.wlogin_sdk.tools.ErrMsg?) {
+                            QmceLog.w(TAG, "bind: QZone pskey timeout: ${e?.message}")
+                        }
+                    })
+                }
             }
         }.onFailure { QmceLog.e(TAG, "bind: ticket check failed", it) }
     }

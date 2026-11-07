@@ -208,16 +208,6 @@ fun ContactsScreen(
                                     },
                                     label = { Text("排序") },
                                 )
-                                CompactButton(
-                                    onClick = {
-                                        val activeRt = QmceApplication.ensureRuntime()
-                                        vm.loadBuddies(activeRt, forceRefresh = true)
-                                    },
-                                    icon = {
-                                        Icon(Icons.Default.Refresh, contentDescription = "刷新联系人")
-                                    },
-                                    label = { Text("刷新") },
-                                )
                             }
                         }
                         visibleCategories.forEach { category ->

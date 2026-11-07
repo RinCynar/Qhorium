@@ -5,10 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tencent.qqnt.kernel.api.IBuddyService
 import com.tencent.qqnt.kernel.api.IGroupService
+import com.tencent.qqnt.kernel.nativeinterface.BuddyCategory
 import com.tencent.qqnt.kernel.nativeinterface.BuddyListCategory
 import com.tencent.qqnt.kernel.nativeinterface.BuddyListReqType
+import com.tencent.qqnt.kernel.nativeinterface.BuddyReqInfo
+import com.tencent.qqnt.kernel.nativeinterface.BuddySetting
+import com.tencent.qqnt.kernel.nativeinterface.BuddyVerify
 import com.tencent.qqnt.kernel.nativeinterface.BulletinFeedsDownloadInfo
 import com.tencent.qqnt.kernel.nativeinterface.DataSource
+import com.tencent.qqnt.kernel.nativeinterface.DelBuddyResult
+import com.tencent.qqnt.kernel.nativeinterface.DoubtBuddyReqListRsp
 import com.tencent.qqnt.kernel.nativeinterface.FirstGroupBulletinInfo
 import com.tencent.qqnt.kernel.nativeinterface.GroupAllInfo
 import com.tencent.qqnt.kernel.nativeinterface.GroupArkInviteStateInfo
@@ -27,6 +33,7 @@ import com.tencent.qqnt.kernel.nativeinterface.GroupNotifyTemplateItem
 import com.tencent.qqnt.kernel.nativeinterface.GroupSimpleInfo
 import com.tencent.qqnt.kernel.nativeinterface.GroupStatisticInfo
 import com.tencent.qqnt.kernel.nativeinterface.IBuddyListCallback
+import com.tencent.qqnt.kernel.nativeinterface.IKernelBuddyListener
 import com.tencent.qqnt.kernel.nativeinterface.IKernelGroupListener
 import com.tencent.qqnt.kernel.nativeinterface.JoinGroupNotifyMsg
 import com.tencent.qqnt.kernel.nativeinterface.MemberInfo
@@ -214,6 +221,131 @@ class ContactsViewModel : ViewModel() {
         ) = Unit
     }
 
+    private val buddyListenerLock = Any()
+    private var buddyListenerService: IBuddyService? = null
+    private var buddyListenerRegistered = false
+    private var backgroundSyncJob: Job? = null
+
+    private val buddyListener = object : IKernelBuddyListener {
+        override fun onBuddyListChangedV2(changed: Boolean) {
+            Log.d(TAG, "onBuddyListChangedV2: changed=$changed")
+            if (changed) {
+                buddyListenerService?.let { svc ->
+                    svc.getBuddyListV2("", false, BuddyListReqType.KNOMAL, object : IBuddyListCallback {
+                        override fun onResult(code: Int, errMsg: String?, list: ArrayList<BuddyListCategory>?) {
+                            if (code == 0 && !list.isNullOrEmpty()) {
+                                onBuddyCategories(list, svc, QmceApplication.ensureRuntime(), forceRefresh = false, fromPush = true)
+                            }
+                        }
+                    })
+                }
+            }
+        }
+
+        override fun onBuddyListChange(categories: ArrayList<BuddyCategory>) {
+            Log.d(TAG, "onBuddyListChange: categories=${categories.size}")
+            buddyListenerService?.let { svc ->
+                svc.getBuddyListV2("", false, BuddyListReqType.KNOMAL, object : IBuddyListCallback {
+                    override fun onResult(code: Int, errMsg: String?, list: ArrayList<BuddyListCategory>?) {
+                        if (code == 0 && !list.isNullOrEmpty()) {
+                            onBuddyCategories(list, svc, QmceApplication.ensureRuntime(), forceRefresh = false, fromPush = true)
+                        }
+                    }
+                })
+            }
+        }
+
+        override fun onNickUpdated(uid: String, nick: String) {
+            if (uid.isBlank() || nick.isBlank()) return
+            updateBuddyNick(uid, nick)
+        }
+
+        override fun onBuddyRemarkUpdated(uid: String, remark: String) {
+            if (uid.isBlank()) return
+            updateBuddyRemark(uid, remark)
+        }
+
+        override fun onAvatarUrlUpdated(uid: String) = Unit
+        override fun onAddBuddyNeedVerify(verify: BuddyVerify) = Unit
+        override fun onAddMeSettingChanged(type: Int, settings: HashMap<String, String>) = Unit
+        override fun onBlockChanged(blockMap: HashMap<String, Boolean>) = Unit
+        override fun onBuddyDeleted(uid: String) = Unit
+        override fun onBuddyReqChange(info: BuddyReqInfo) = Unit
+        override fun onBuddyReqUnreadCntChange(count: Int) = Unit
+        override fun onCheckBuddySettingResult(setting: BuddySetting) = Unit
+        override fun onDelBatchBuddyInfos(results: ArrayList<DelBuddyResult>) = Unit
+        override fun onDoubtBuddyReqChange(info: DoubtBuddyReqListRsp) = Unit
+        override fun onDoubtBuddyReqUnreadNumChange(count: Int) = Unit
+        override fun onSmartInfos(uid: String, smartInfo: String, type: Int) = Unit
+        override fun onSpacePermissionInfos(infos: HashMap<Long, Int>) = Unit
+    }
+
+    private fun updateBuddyNick(uid: String, nick: String) {
+        val current = rawCategories
+        if (current.isEmpty()) return
+        var changed = false
+        val updated = current.map { cat ->
+            val newBuddies = cat.buddies.map { buddy ->
+                if (buddy.uid == uid && buddy.nick != nick) {
+                    changed = true
+                    buddy.copy(nick = nick)
+                } else buddy
+            }
+            if (changed) cat.copy(buddies = newBuddies) else cat
+        }
+        if (changed) {
+            publishCategories(updated)
+        }
+    }
+
+    private fun updateBuddyRemark(uid: String, remark: String) {
+        val current = rawCategories
+        if (current.isEmpty()) return
+        var changed = false
+        val updated = current.map { cat ->
+            val newBuddies = cat.buddies.map { buddy ->
+                if (buddy.uid == uid && buddy.remark != remark) {
+                    changed = true
+                    buddy.copy(remark = remark)
+                } else buddy
+            }
+            if (changed) cat.copy(buddies = newBuddies) else cat
+        }
+        if (changed) {
+            publishCategories(updated)
+        }
+    }
+
+    private fun registerBuddyListener(service: IBuddyService): Boolean = synchronized(buddyListenerLock) {
+        if (buddyListenerRegistered && buddyListenerService === service) return@synchronized true
+        if (buddyListenerRegistered) {
+            unregisterBuddyListenerInternal()
+        }
+        runCatching {
+            SdkCompat.addBuddyListener(service, buddyListener)
+            buddyListenerService = service
+            buddyListenerRegistered = true
+            true
+        }.onFailure {
+            Log.w(TAG, "buddy listener registration failed", it)
+        }.getOrDefault(false)
+    }
+
+    private fun unregisterBuddyListener() {
+        synchronized(buddyListenerLock) {
+            unregisterBuddyListenerInternal()
+        }
+    }
+
+    private fun unregisterBuddyListenerInternal() {
+        if (!buddyListenerRegistered) return
+        runCatching {
+            buddyListenerService?.let { SdkCompat.removeBuddyListener(it, buddyListener) }
+        }
+        buddyListenerService = null
+        buddyListenerRegistered = false
+    }
+
     fun setSortMode(mode: String) {
         val normalized = mode.ifBlank { SettingsViewModel.DEFAULT_CONTACTS_SORT_MODE }
         if (sortMode == normalized) return
@@ -247,43 +379,50 @@ class ContactsViewModel : ViewModel() {
     }
 
     fun loadBuddies(runtime: AppRuntime?, forceRefresh: Boolean = false) {
-        if (loaded && !forceRefresh) return
-        if (_loading.value) return
-        _loading.value = true
-        _statusText.value = "加载联系人..."
+        if (loaded && !forceRefresh && _categories.value.isNotEmpty()) {
+            triggerBackgroundSync(runtime)
+            return
+        }
+        if (_loading.value && _categories.value.isEmpty()) return
+        if (_categories.value.isEmpty()) {
+            _loading.value = true
+            _statusText.value = "加载联系人..."
+        }
 
         if (!KernelBridge.areCoreServicesReady()) {
-            _statusText.value = "等待内核服务..."
+            if (_categories.value.isEmpty()) {
+                _statusText.value = "等待内核服务..."
+            }
             viewModelScope.launch(Dispatchers.IO) {
                 val ready = KernelBridge.awaitCoreServices(
                     timeoutMillis = 30_000,
                     runtimeOverride = runtime,
                 )
-                if (!ready || KernelBridge.getBuddyService() == null) {
-                    _statusText.value = "等待内核服务..."
-                    _loading.value = false
+                val svc = KernelBridge.getBuddyService()
+                if (!ready || svc == null) {
+                    if (_categories.value.isEmpty()) {
+                        _statusText.value = "等待内核服务..."
+                        _loading.value = false
+                    }
                     scheduleRetry(runtime, "buddy-service-unavailable")
                     return@launch
                 }
-                val svc = KernelBridge.getBuddyService()
-                if (svc != null) {
-                    requestBuddyList(svc, runtime, forceRefresh)
-                } else {
-                    _statusText.value = "等待内核服务..."
-                    _loading.value = false
-                    scheduleRetry(runtime, "buddy-service-unavailable")
-                }
+                registerBuddyListener(svc)
+                requestInitialBuddyList(svc, runtime)
             }
             return
         }
 
         val buddySvc = KernelBridge.getBuddyService()
         if (buddySvc != null) {
-            requestBuddyList(buddySvc, runtime, forceRefresh)
+            registerBuddyListener(buddySvc)
+            requestInitialBuddyList(buddySvc, runtime)
             return
         }
 
-        _statusText.value = "等待内核服务..."
+        if (_categories.value.isEmpty()) {
+            _statusText.value = "等待内核服务..."
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val deadline = System.currentTimeMillis() + 30_000
             var svc = KernelBridge.getBuddyService()
@@ -293,41 +432,98 @@ class ContactsViewModel : ViewModel() {
                 svc = KernelBridge.getBuddyService()
             }
             if (svc != null) {
-                requestBuddyList(svc, runtime, forceRefresh)
+                registerBuddyListener(svc)
+                requestInitialBuddyList(svc, runtime)
             } else {
-                _statusText.value = "等待内核服务..."
-                _loading.value = false
+                if (_categories.value.isEmpty()) {
+                    _statusText.value = "等待内核服务..."
+                    _loading.value = false
+                }
                 scheduleRetry(runtime, "buddy-service-unavailable")
             }
         }
     }
 
-    private fun requestBuddyList(
+    private fun requestInitialBuddyList(
         buddySvc: IBuddyService,
         runtime: AppRuntime?,
-        forceRefresh: Boolean,
     ) {
+        // Step 1: Query local cache first (forceRefresh = false) to render instantly (SWR - Stale phase)
         runCatching {
-            buddySvc.getBuddyListV2("", forceRefresh, BuddyListReqType.KNOMAL, object : IBuddyListCallback {
+            buddySvc.getBuddyListV2("", false, BuddyListReqType.KNOMAL, object : IBuddyListCallback {
                 override fun onResult(
                     code: Int,
                     errMsg: String?,
                     list: java.util.ArrayList<BuddyListCategory>?,
                 ) {
-                    Log.d(TAG, "getBuddyListV2: code=$code, count=${list?.size}, forceRefresh=$forceRefresh")
+                    Log.d(TAG, "getBuddyListV2 (cache): code=$code, count=${list?.size}")
                     if (code == 0 && !list.isNullOrEmpty()) {
-                        onBuddyCategories(list, buddySvc, runtime, forceRefresh)
+                        onBuddyCategories(list, buddySvc, runtime, forceRefresh = false)
+                        triggerBackgroundSync(runtime, buddySvc)
                     } else {
-                        fallbackBuddyList(buddySvc, runtime, "v2-empty-or-error-$code")
+                        requestNetworkBuddyList(buddySvc, runtime)
                     }
                 }
             })
         }.onFailure { error ->
-            loaded = false
-            _loading.value = false
-            _statusText.value = "联系人加载失败，正在重试"
-            Log.e(TAG, "getBuddyListV2 request failed", error)
-            fallbackBuddyList(buddySvc, runtime, "request-${error.javaClass.simpleName}")
+            Log.e(TAG, "getBuddyListV2 cache query failed", error)
+            requestNetworkBuddyList(buddySvc, runtime)
+        }
+    }
+
+    private fun triggerBackgroundSync(runtime: AppRuntime?, service: IBuddyService? = null) {
+        synchronized(loadLock) {
+            if (backgroundSyncJob?.isActive == true) return
+            backgroundSyncJob = viewModelScope.launch(Dispatchers.IO) {
+                delay(800)
+                val svc = service ?: KernelBridge.getBuddyService() ?: return@launch
+                Log.d(TAG, "SWR: background silent network synchronization starting")
+                val buddySyncSuccess = withTimeoutOrNull(15_000L) {
+                    val deferred = CompletableDeferred<Boolean>()
+                    svc.getBuddyListV2("", true, BuddyListReqType.KNOMAL, object : IBuddyListCallback {
+                        override fun onResult(code: Int, errMsg: String?, list: java.util.ArrayList<BuddyListCategory>?) {
+                            Log.d(TAG, "SWR: background network buddy sync result code=$code, count=${list?.size}")
+                            if (code == 0 && !list.isNullOrEmpty()) {
+                                onBuddyCategories(list, svc, runtime, forceRefresh = false, fromPush = true)
+                            }
+                            deferred.complete(code == 0)
+                        }
+                    })
+                    deferred.await()
+                } ?: false
+
+                Log.d(TAG, "SWR: buddy sync finished (ok=$buddySyncSuccess); now syncing groups sequentially")
+                loadGroups(forceRefresh = true)
+            }
+        }
+    }
+
+    private fun requestNetworkBuddyList(buddySvc: IBuddyService, runtime: AppRuntime?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = withTimeoutOrNull(15_000L) {
+                val deferred = CompletableDeferred<Boolean>()
+                buddySvc.getBuddyListV2("", true, BuddyListReqType.KNOMAL, object : IBuddyListCallback {
+                    override fun onResult(code: Int, errMsg: String?, list: java.util.ArrayList<BuddyListCategory>?) {
+                        Log.d(TAG, "network getBuddyListV2: code=$code, count=${list?.size}")
+                        if (code == 0 && !list.isNullOrEmpty()) {
+                            onBuddyCategories(list, buddySvc, runtime, forceRefresh = false)
+                            deferred.complete(true)
+                        } else {
+                            fallbackBuddyList(buddySvc, runtime, "v2-empty-or-error-$code")
+                            deferred.complete(false)
+                        }
+                    }
+                })
+                deferred.await()
+            } ?: false
+
+            if (!success && _categories.value.isEmpty()) {
+                _loading.value = false
+                _statusText.value = "联系人网络同步超时，稍后自动重试"
+                scheduleRetry(runtime, "network-sync-timeout")
+            } else {
+                loadGroups(forceRefresh = false)
+            }
         }
     }
 
@@ -336,19 +532,24 @@ class ContactsViewModel : ViewModel() {
         buddySvc: IBuddyService,
         runtime: AppRuntime?,
         forceRefresh: Boolean = false,
+        fromPush: Boolean = false,
     ) {
         loaded = true
         val generation = loadGeneration.incrementAndGet()
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                launch { loadGroups(forceRefresh = forceRefresh) }
+                if (_groups.value.isEmpty() && !_groupsLoading.value) {
+                    launch { loadGroups(forceRefresh = false) }
+                }
                 processCategoriesIncrementally(list, buddySvc, generation)
             }.onFailure { error ->
-                loaded = false
-                _loading.value = false
-                _statusText.value = "联系人加载失败，正在重试"
-                Log.e(TAG, "process buddy list failed", error)
-                scheduleRetry(runtime, "process-${error.javaClass.simpleName}")
+                if (!fromPush) {
+                    loaded = false
+                    _loading.value = false
+                    _statusText.value = "联系人加载失败，正在重试"
+                    Log.e(TAG, "process buddy list failed", error)
+                    scheduleRetry(runtime, "process-${error.javaClass.simpleName}")
+                }
             }
         }
     }
@@ -617,10 +818,13 @@ class ContactsViewModel : ViewModel() {
         synchronized(loadLock) {
             retryJob?.cancel()
             retryJob = null
+            backgroundSyncJob?.cancel()
+            backgroundSyncJob = null
         }
         pendingGroupList?.cancel()
         pendingGroupList = null
         unregisterGroupListener()
+        unregisterBuddyListener()
         super.onCleared()
     }
 

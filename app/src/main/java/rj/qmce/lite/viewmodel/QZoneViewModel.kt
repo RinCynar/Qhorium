@@ -522,21 +522,10 @@ class QZoneViewModel : ViewModel() {
                             cancelFeedRetry()
                             cancelEmptyRefreshRetry()
                         } else {
-                            // Keep loading UI through the empty-retry budget; only settle on
-                            // "暂无动态" once retries are exhausted.
                             cancelFeedRetry()
-                            val canRetry = synchronized(emptyRetryLock) {
-                                emptyRefreshAttempts < MAX_EMPTY_REFRESH_RETRIES
-                            }
-                            if (canRetry) {
-                                _statusText.value = "加载空间动态..."
-                                _loading.value = true
-                                if (!isCurrentFeedLoad(generation)) return@launch
-                                scheduleEmptyRefreshRetry()
-                            } else {
-                                _statusText.value = "暂无动态"
-                                finishFeedLoad(generation, success = true, preserveStatus = true)
-                            }
+                            cancelEmptyRefreshRetry()
+                            _statusText.value = "暂无动态"
+                            finishFeedLoad(generation, success = true, preserveStatus = true)
                         }
                     }
                     QZoneFeedRepository.RefreshResult.Cancelled -> {
