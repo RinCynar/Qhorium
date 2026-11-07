@@ -62,7 +62,6 @@ import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportLifecycle
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
 import rj.qmce.lite.ui.theme.LocalQmceAdaptive
-import rj.qmce.lite.viewmodel.SettingsViewModel
 
 @Composable
 fun QmceCallScreen(onFinish: () -> Unit) {
@@ -70,13 +69,7 @@ fun QmceCallScreen(onFinish: () -> Unit) {
     val peer = state.peer
     val context = LocalContext.current
     val adaptive = LocalQmceAdaptive.current
-    val blockBack = remember {
-        context.getSharedPreferences(SettingsViewModel.PREFERENCES_NAME, android.content.Context.MODE_PRIVATE)
-            .getBoolean(SettingsViewModel.KEY_CALL_BLOCK_BACK, true)
-    }
-    BackHandler(enabled = blockBack && state.phase !in setOf(CallPhase.Idle, CallPhase.Ended)) {
-        // Swallow back / swipe-dismiss during call when strict mode is on.
-    }
+
     var incomingSession by remember { mutableStateOf(state.phase == CallPhase.Incoming) }
     LaunchedEffect(state.phase) {
         if (state.phase == CallPhase.Incoming) incomingSession = true

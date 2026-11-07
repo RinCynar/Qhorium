@@ -245,7 +245,6 @@ fun ChatDetailScreen(
     onOpenSingleEmotion: () -> Unit = {},
     onOpenVoiceRecorder: () -> Unit = {},
     onOpenContactPicker: () -> Unit = {},
-    onOpenPacketTool: () -> Unit = {},
     onOpenMembers: () -> Unit = {},
     onOpenGroupInfo: () -> Unit = {},
     onOpenChatSettings: () -> Unit = {},
@@ -541,21 +540,6 @@ fun ChatDetailScreen(
             showJumpBottom = !state.atBottom && !state.isScrolling
             if (state.isScrolling) {
                 followNewMessages = state.atBottom && !movedTowardTop
-            }
-            val settledNearEnd =
-                previousState?.isScrolling == true &&
-                    !state.isScrolling &&
-                    !state.atBottom
-            if (settledNearEnd) {
-                val lastIndex = listState.layoutInfo.totalItemsCount - 1
-                val lastVisible =
-                    lastIndex >= 0 &&
-                        listState.layoutInfo.visibleItems.any { it.index == lastIndex }
-                if (lastVisible) {
-                    listScrollScope.launch {
-                        listState.scrollToAbsoluteEnd()
-                    }
-                }
             }
             if (!state.atTop) {
                 reachedTopFromUpwardScroll = false
@@ -878,7 +862,6 @@ fun ChatDetailScreen(
                     CallPage(
                         peerName = name.ifEmpty { peerName },
                         onRequestCall = requestCall,
-                        onOpenPacketTool = onOpenPacketTool,
                     )
                 } else {
                     ChatInfoScreen(
@@ -1218,7 +1201,6 @@ private fun List<ChatDetailViewModel.UiMsg>.toTimelineItems(): List<ChatTimeline
 private fun CallPage(
     peerName: String,
     onRequestCall: (CallMode) -> Unit,
-    onOpenPacketTool: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
@@ -1289,7 +1271,6 @@ private fun CallPage(
                     Text("视频通话")
                 }
             }
-            // 发包工具入口已隐藏；PacketToolScreen 代码保留
         }
     }
 }
@@ -1891,12 +1872,8 @@ private fun LocalMarketFace(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val cachedPaths = remember(content.element) {
-        EmotionRepository.cachedMarketFacePaths(context, content.element)
-    }
-    val candidatePaths = remember(content.staticPath, content.dynamicPath, cachedPaths) {
-        (listOf(content.dynamicPath, content.staticPath) + cachedPaths)
-            .filterNotNull()
+    val candidatePaths = remember(content.staticPath, content.dynamicPath) {
+        listOfNotNull(content.dynamicPath, content.staticPath)
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
@@ -1909,101 +1886,14 @@ private fun LocalMarketFace(
         content.element?.let { "${it.emojiPackageId}:${it.emojiId}" } ?: content.name
     }
     var failedPaths by remember(marketFaceKey) { mutableStateOf(emptySet<String>()) }
-    val animatedCandidate = remember(candidatePaths, failedPaths) {
+    val preferredPath = remember(candidatePaths, failedPaths) {
         candidatePaths.firstOrNull { path ->
-            path !in failedPaths &&
-                LocalMediaResolver.resolveFile(path) != null &&
-                isLikelyAnimatedMarketFace(path)
+            path !in failedPaths && LocalMediaResolver.resolveFile(path) != null
         }
     }
-    val staticCandidate = remember(candidatePaths, failedPaths, content.staticPath) {
-        sequenceOf(content.staticPath)
-            .plus(candidatePaths)
-            .filterNotNull()
-            .firstOrNull { path ->
-                path !in failedPaths &&
-                    LocalMediaResolver.resolveFile(path) != null &&
-                    !isLikelyAnimatedMarketFace(path)
-            }
-    }
-    val preferredPath = animatedCandidate ?: staticCandidate
-    var localPath by remember(marketFaceKey, preferredPath, candidatePaths, failedPaths) {
-        mutableStateOf(
-            preferredPath
-                ?: candidatePaths.firstOrNull { path ->
-                    path !in failedPaths && LocalMediaResolver.resolveFile(path) != null
-                },
-        )
-    }
-    LaunchedEffect(preferredPath, failedPaths) {
-        if (preferredPath != null && preferredPath !in failedPaths) {
-            localPath = preferredPath
-        }
-    }
-    val localFile = localPath?.let(LocalMediaResolver::resolveFile)
-    var officialDrawable by remember(marketFaceKey) { mutableStateOf<Drawable?>(null) }
-    var officialDrawableVersion by remember(marketFaceKey) { mutableStateOf(0) }
-    var officialRetry by remember(marketFaceKey) { mutableStateOf(0) }
-    LaunchedEffect(marketFaceKey, candidatePaths, failedPaths, localPath) {
-        if (localPath != null && localPath !in failedPaths) return@LaunchedEffect
-        val deadline = System.currentTimeMillis() + 8_000L
-        while (System.currentTimeMillis() < deadline) {
-            val nextPath = (listOfNotNull(animatedCandidate, staticCandidate) + candidatePaths)
-                .firstOrNull { path ->
-                    path !in failedPaths && LocalMediaResolver.resolveFile(path) != null
-                }
-            if (nextPath != null) {
-                localPath = nextPath
-                return@LaunchedEffect
-            }
-            delay(150L)
-        }
-    }
-    // Always try official animated drawable when element is present.
-    LaunchedEffect(marketFaceKey, content.element, officialRetry) {
-        val element = content.element
-        val needOfficial = element != null && officialRetry <= 2
-        if (needOfficial && officialDrawable == null) {
-            if (officialRetry > 0) delay(400L)
-            EmotionRepository.loadMarketFaceDrawable(element!!) { drawable ->
-                if (drawable != null) {
-                    officialDrawable = drawable
-                    officialDrawableVersion++
-                } else if (officialRetry < 2) {
-                    officialRetry++
-                }
-            }
-        }
-    }
-    val showOfficial = officialDrawable != null
-    if (showOfficial) {
-        val currentDrawable = officialDrawable
-        val currentDrawableVersion = officialDrawableVersion
-        AndroidView(
-            factory = { viewContext ->
-                ImageView(viewContext).apply {
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                }
-            },
-            update = { imageView ->
-                imageView.tag = currentDrawableVersion
-                if (imageView.drawable !== currentDrawable) {
-                    imageView.setImageDrawable(currentDrawable)
-                }
-                currentDrawable?.setVisible(true, true)
-                (currentDrawable as? android.graphics.drawable.Animatable)?.start()
-                imageView.invalidate()
-            },
-            modifier = Modifier.size(size.width, size.height),
-        )
-        DisposableEffect(currentDrawable, marketFaceKey) {
-            onDispose {
-                (currentDrawable as? android.graphics.drawable.Animatable)?.stop()
-                currentDrawable?.setVisible(false, false)
-            }
-        }
-    } else if (localFile != null && localPath !in failedPaths) {
+    val localFile = preferredPath?.let(LocalMediaResolver::resolveFile)
+
+    if (localFile != null && preferredPath !in failedPaths) {
         Box(
             modifier = Modifier
                 .size(size.width, size.height)
@@ -2018,42 +1908,13 @@ private fun LocalMarketFace(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
                 onError = {
-                    localPath?.let { path -> failedPaths = failedPaths + path }
-                    localPath = null
+                    failedPaths = failedPaths + preferredPath
                 },
             )
         }
     } else {
         MessageFallback(content.name)
     }
-}
-
-private fun isLikelyAnimatedMarketFace(path: String): Boolean {
-    val lower = path.lowercase(Locale.US)
-    if (lower.endsWith(".gif")) return true
-    if (lower.endsWith("_aio.png") || lower.endsWith("_thu.png")) return false
-    if (lower.contains("apng") || lower.endsWith("_apng")) return true
-    if (lower.contains("emoticonimagepath") || lower.contains("emoticon_image")) return true
-    if (lower.endsWith(".png")) return false
-    val file = LocalMediaResolver.resolveFile(path) ?: return true
-    if (isLikelyGifFile(file)) return true
-    // No extension — often official dynamic cache files.
-    if (!file.name.contains('.')) return true
-    return false
-}
-
-private fun isLikelyGifFile(file: File): Boolean {
-    if (file.name.lowercase(Locale.US).endsWith(".gif")) return true
-    return runCatching {
-        file.inputStream().use { input ->
-            val header = ByteArray(4)
-            if (input.read(header) < 4) return@runCatching false
-            header[0] == 'G'.code.toByte() &&
-                header[1] == 'I'.code.toByte() &&
-                header[2] == 'F'.code.toByte() &&
-                header[3] == '8'.code.toByte()
-        }
-    }.getOrDefault(false)
 }
 
 @Composable

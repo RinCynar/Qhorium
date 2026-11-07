@@ -110,16 +110,8 @@ private const val IMG_MARKER = ''
 
 private const val AT_MARKER = ''
 private const val FACE_MARKER = ''
-private const val MARKET_FACE_MARKER = ''
 
 data class ImageSlot(val id: String, val uri: Uri)
-
-private sealed interface MarketFaceThumbnailState {
-    data object Loading : MarketFaceThumbnailState
-    data class Ready(val bitmap: Bitmap) : MarketFaceThumbnailState
-    data class DrawableReady(val drawable: Drawable) : MarketFaceThumbnailState
-    data object Unavailable : MarketFaceThumbnailState
-}
 
 @Composable
 fun ChatInputScreen(
@@ -153,7 +145,6 @@ fun ChatInputScreen(
     }
     val imageSlots = remember { mutableStateListOf<ImageSlot>() }
     val faceSlots = remember { mutableStateListOf<EmotionRepository.Selection.SystemFace>() }
-    val marketFaceSlots = remember { mutableStateListOf<EmotionRepository.Selection.MarketFace>() }
     var imagePickerSelection by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val atSlots = remember { mutableStateListOf<AtMention>() }
     val editSendState by vm.editSendState.collectAsState()
@@ -180,7 +171,6 @@ fun ChatInputScreen(
         textFieldValue = TextFieldValue(text, TextRange(text.length))
         imageSlots.clear()
         faceSlots.clear()
-        marketFaceSlots.clear()
         atSlots.clear()
         vm.consumePendingVoiceText()
     }
@@ -246,17 +236,6 @@ fun ChatInputScreen(
         )
     }
 
-    fun insertMarketFace(face: EmotionRepository.Selection.MarketFace) {
-        val cursor = textFieldValue.selection.end
-        val slotIndex = textFieldValue.text.substring(0, cursor).count { it == MARKET_FACE_MARKER }
-        val text = textFieldValue.text
-        marketFaceSlots.add(slotIndex.coerceIn(0, marketFaceSlots.size), face)
-        textFieldValue = TextFieldValue(
-            text = text.substring(0, cursor) + MARKET_FACE_MARKER + text.substring(cursor),
-            selection = TextRange(cursor + 1),
-        )
-    }
-
     LaunchedEffect(replyTarget?.messageId) {
         val target = replyTarget ?: return@LaunchedEffect
         activeReplyTarget = target
@@ -272,7 +251,6 @@ fun ChatInputScreen(
                 textFieldValue = TextFieldValue("")
                 imageSlots.clear()
                 faceSlots.clear()
-                marketFaceSlots.clear()
                 atSlots.clear()
                 if (peerUid.isNotBlank()) DraftStore.clear(context, peerUid, chatType)
                 vm.completeEditedSend()
@@ -418,10 +396,6 @@ fun ChatInputScreen(
                 insertSystemFace(face)
                 showEmojiPicker = false
             },
-            onSelectMarketFace = { face ->
-                insertMarketFace(face)
-                showEmojiPicker = false
-            },
             onBack = { showEmojiPicker = false },
         )
         return
@@ -501,9 +475,8 @@ fun ChatInputScreen(
         .replace(IMG_MARKER.toString(), "")
         .replace(AT_MARKER.toString(), "")
         .replace(FACE_MARKER.toString(), "")
-        .replace(MARKET_FACE_MARKER.toString(), "")
         .isNotBlank() || imageSlots.isNotEmpty() || atSlots.isNotEmpty()
-        || faceSlots.isNotEmpty() || marketFaceSlots.isNotEmpty()
+        || faceSlots.isNotEmpty()
 
     QmceScreenScaffold(
         scrollState = listState,
@@ -518,11 +491,10 @@ fun ChatInputScreen(
                         .replace(IMG_MARKER.toString(), "")
                         .replace(AT_MARKER.toString(), "")
                         .replace(FACE_MARKER.toString(), "")
-                        .replace(MARKET_FACE_MARKER.toString(), "")
                         .isNotBlank()
                     val hasImages = imageSlots.isNotEmpty()
                     val hasMentions = atSlots.isNotEmpty()
-                    val hasFaces = faceSlots.isNotEmpty() || marketFaceSlots.isNotEmpty()
+                    val hasFaces = faceSlots.isNotEmpty()
 
                     if (!hasText && !hasImages && !hasMentions && !hasFaces) return@EdgeButton
 
@@ -539,14 +511,10 @@ fun ChatInputScreen(
                             faceSlots.forEachIndexed { index, face ->
                                 put("face:$index", face)
                             }
-                            marketFaceSlots.forEachIndexed { index, face ->
-                                put("market:$index", face)
-                            }
                         }
                         var imageIndex = 0
                         var atIndex = 0
                         var faceIndex = 0
-                        var marketFaceIndex = 0
                         val mappedText = buildString {
                             text.forEach { ch ->
                                 when (ch) {
@@ -567,12 +535,6 @@ fun ChatInputScreen(
                                             .append(BOUNDARY_END)
                                     }
 
-                                    MARKET_FACE_MARKER -> {
-                                        append(BOUNDARY_START).append("market:")
-                                            .append(marketFaceIndex++)
-                                            .append(BOUNDARY_END)
-                                    }
-
                                     else -> append(ch)
                                 }
                             }
@@ -584,7 +546,6 @@ fun ChatInputScreen(
                     textFieldValue = TextFieldValue("")
                     imageSlots.clear()
                     faceSlots.clear()
-                    marketFaceSlots.clear()
                     atSlots.clear()
                     activeReplyTarget = null
                     if (peerUid.isNotBlank()) DraftStore.clear(context, peerUid, chatType)
@@ -705,19 +666,6 @@ fun ChatInputScreen(
                             )
                             if (removedIdx in faceSlots.indices) faceSlots.removeAt(removedIdx)
                         }
-                        val oldMarketFaceMarkers =
-                            textFieldValue.text.count { it == MARKET_FACE_MARKER }
-                        val newMarketFaceMarkers = newValue.text.count { it == MARKET_FACE_MARKER }
-                        if (newMarketFaceMarkers < oldMarketFaceMarkers) {
-                            val removedIdx = findRemovedMarkerIndex(
-                                textFieldValue.text,
-                                newValue.text,
-                                MARKET_FACE_MARKER,
-                            )
-                            if (removedIdx in marketFaceSlots.indices) {
-                                marketFaceSlots.removeAt(removedIdx)
-                            }
-                        }
                         textFieldValue = newValue
                     },
                     modifier = Modifier
@@ -735,7 +683,6 @@ fun ChatInputScreen(
                         imageCount = imageSlots.size,
                         atMentions = atSlots,
                         faceCount = faceSlots.size,
-                        marketFaceCount = marketFaceSlots.size,
                         highlightColor = scheme.primary,
                     ),
                     decorationBox = { innerTextField ->
@@ -949,234 +896,85 @@ private fun ChatInputToolsScreen(
 fun EmotionPickerScreen(
     context: android.content.Context,
     onSelectSystemFace: (EmotionRepository.Selection.SystemFace) -> Unit,
-    onSelectMarketFace: (EmotionRepository.Selection.MarketFace) -> Unit,
     onBack: () -> Unit,
 ) {
     var systemFaces by remember { mutableStateOf<List<EmotionRepository.Selection.SystemFace>>(emptyList()) }
-    var marketPacks by remember { mutableStateOf<List<EmotionRepository.MarketPack>>(emptyList()) }
-    var selectedPack by remember { mutableStateOf<EmotionRepository.MarketPack?>(null) }
-    var marketFaces by remember { mutableStateOf<List<EmotionRepository.Selection.MarketFace>>(emptyList()) }
-    var loadingMarketFaces by remember { mutableStateOf(false) }
     val listState = rememberTransformingLazyColumnState()
-    val detailListState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
-    
-    val dismissState = rememberSwipeToDismissBoxState()
-    LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue == SwipeToDismissValue.Dismissed) {
-            selectedPack = null
-            dismissState.snapTo(SwipeToDismissValue.Default)
-        }
-    }
 
-    BackHandler(onBack = {
-        if (selectedPack != null) {
-            selectedPack = null
-        } else {
-            onBack()
-        }
-    })
+    BackHandler(onBack = onBack)
 
     LaunchedEffect(Unit) {
         systemFaces = EmotionRepository.loadSystemFaces()
         EmotionRepository.loadSystemFacesAsync { loadedFaces ->
             systemFaces = loadedFaces
         }
-        EmotionRepository.loadMarketPacks { marketPacks = it }
-    }
-    LaunchedEffect(selectedPack?.epId) {
-        val pack = selectedPack ?: run {
-            marketFaces = emptyList()
-            return@LaunchedEffect
-        }
-        loadingMarketFaces = true
-        EmotionRepository.loadMarketFaces(context, pack.epId, pack.isSmallFace) {
-            marketFaces = it
-            loadingMarketFaces = false
-        }
     }
 
-    SwipeToDismissBox(
-        state = dismissState,
-        userSwipeEnabled = selectedPack != null
-    ) { isBackground ->
-        if (isBackground || selectedPack == null) {
-            QmceScreenScaffold(scrollState = listState) { contentPadding ->
-                val safePadding = PaddingValues(
-                    top = contentPadding.calculateTopPadding() + 32.dp,
-                    bottom = contentPadding.calculateBottomPadding() + 32.dp,
-                    start = 8.dp,
-                    end = 8.dp
-                )
-                OfficialReportTargetBox(
-                    key = "emotion-picker:column",
-                    modifier = Modifier.fillMaxSize(),
-                    elementId = OfficialReportBridge.ElementIds.EMOTICON_COLUMN,
-                ) {
-                    TransformingLazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = safePadding,
-                    ) {
-                        item(key = "market-face-heading") {
-                            ListHeader(modifier = Modifier.transformedHeight(this, transformationSpec)) {
-                                Text("系列表情")
-                            }
-                        }
-                        if (marketPacks.isEmpty()) {
-                            item(key = "market-pack-empty") {
-                                Text(
-                                    text = "暂无可用系列表情",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .transformedHeight(this, transformationSpec)
-                                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                        } else {
-                            marketPacks.forEach { pack ->
-                                item(key = "market-pack:${pack.epId}") {
-                                    TitleCard(
-                                        onClick = { selectedPack = pack },
-                                        title = { Text(pack.name) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .transformedHeight(this, transformationSpec)
-                                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                                        transformation = SurfaceTransformation(transformationSpec),
-                                    )
-                                }
-                            }
-                        }
-                        item(key = "system-face-heading") {
-                            ListHeader(modifier = Modifier.transformedHeight(this, transformationSpec)) {
-                                Text("系统表情")
-                            }
-                        }
-                        systemFaces.chunked(4).forEachIndexed { rowIndex, row ->
-                            item(key = "system-face-row:$rowIndex") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .transformedHeight(this, transformationSpec)
-                                        .padding(vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    row.forEach { face ->
-                                        val params = mapOf(
-                                            "sticker_id" to (face.stickerId ?: face.faceIndex.toString()),
-                                            "emoji_type" to "1",
-                                        )
-                                        val reuseIdentifier = "system:${face.faceType}:${face.faceIndex}"
-                                        OfficialReportTargetBox(
-                                            key = "emotion:$reuseIdentifier",
-                                            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
-                                            elementId = OfficialReportBridge.ElementIds.EXPRESSION,
-                                            params = params,
-                                            reuseIdentifier = reuseIdentifier,
-                                        ) { reportTarget ->
-                                            EmotionOptionButton(
-                                                face = face,
-                                                label = face.label,
-                                                fallbackText = remember(face.faceType, face.faceIndex, face.label) {
-                                                    EmotionRepository.systemFaceText(face)
-                                                },
-                                                onClick = {
-                                                    OfficialReportBridge.reportElementClick(
-                                                        target = reportTarget,
-                                                        elementId = OfficialReportBridge.ElementIds.EXPRESSION,
-                                                        params = params,
-                                                        reuseIdentifier = reuseIdentifier,
-                                                    )
-                                                    onSelectSystemFace(face)
-                                                },
-                                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
-                                            )
-                                        }
-                                    }
-                                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
-                                }
-                            }
-                        }
+    QmceScreenScaffold(scrollState = listState) { contentPadding ->
+        val safePadding = PaddingValues(
+            top = contentPadding.calculateTopPadding() + 32.dp,
+            bottom = contentPadding.calculateBottomPadding() + 32.dp,
+            start = 8.dp,
+            end = 8.dp
+        )
+        OfficialReportTargetBox(
+            key = "emotion-picker:column",
+            modifier = Modifier.fillMaxSize(),
+            elementId = OfficialReportBridge.ElementIds.EMOTICON_COLUMN,
+        ) {
+            TransformingLazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = safePadding,
+            ) {
+                item(key = "system-face-heading") {
+                    ListHeader(modifier = Modifier.transformedHeight(this, transformationSpec)) {
+                        Text("系统表情")
                     }
                 }
-            }
-        } else {
-            QmceScreenScaffold(scrollState = detailListState) { contentPadding ->
-                val detailPadding = PaddingValues(
-                    top = contentPadding.calculateTopPadding() + 32.dp,
-                    bottom = contentPadding.calculateBottomPadding() + 32.dp,
-                    start = 8.dp,
-                    end = 8.dp
-                )
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (loadingMarketFaces) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    } else {
-                        TransformingLazyColumn(
-                            state = detailListState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = detailPadding,
+                systemFaces.chunked(4).forEachIndexed { rowIndex, row ->
+                    item(key = "system-face-row:$rowIndex") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .transformedHeight(this, transformationSpec)
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            item(key = "detail-title") {
-                                ListHeader(modifier = Modifier.transformedHeight(this, transformationSpec)) {
-                                    Text(selectedPack?.name.orEmpty())
-                                }
-                            }
-                            marketFaces.chunked(3).forEachIndexed { rowIndex, row ->
-                                item(key = "market-face-row:$rowIndex") {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .transformedHeight(this, transformationSpec)
-                                            .padding(vertical = 2.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        row.forEach { face ->
-                                            val params = mapOf(
-                                                "sticker_id" to face.eId,
-                                                "emoji_type" to "2",
-                                            )
-                                            val reuseIdentifier = "market:${face.epId}:${face.eId}"
-                                            OfficialReportTargetBox(
-                                                key = "emotion:$reuseIdentifier",
-                                                modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
+                            row.forEach { face ->
+                                val params = mapOf(
+                                    "sticker_id" to (face.stickerId ?: face.faceIndex.toString()),
+                                    "emoji_type" to "1",
+                                )
+                                val reuseIdentifier = "system:${face.faceType}:${face.faceIndex}"
+                                OfficialReportTargetBox(
+                                    key = "emotion:$reuseIdentifier",
+                                    modifier = Modifier.weight(1f).defaultMinSize(minHeight = 48.dp),
+                                    elementId = OfficialReportBridge.ElementIds.EXPRESSION,
+                                    params = params,
+                                    reuseIdentifier = reuseIdentifier,
+                                ) { reportTarget ->
+                                    EmotionOptionButton(
+                                        face = face,
+                                        label = face.label,
+                                        fallbackText = remember(face.faceType, face.faceIndex, face.label) {
+                                            EmotionRepository.systemFaceText(face)
+                                        },
+                                        onClick = {
+                                            OfficialReportBridge.reportElementClick(
+                                                target = reportTarget,
                                                 elementId = OfficialReportBridge.ElementIds.EXPRESSION,
                                                 params = params,
                                                 reuseIdentifier = reuseIdentifier,
-                                            ) { reportTarget ->
-                                                MarketFaceOptionButton(
-                                                    face = face,
-                                                    onClick = {
-                                                        OfficialReportBridge.reportElementClick(
-                                                            target = reportTarget,
-                                                            elementId = OfficialReportBridge.ElementIds.EXPRESSION,
-                                                            params = params,
-                                                            reuseIdentifier = reuseIdentifier,
-                                                        )
-                                                        onSelectMarketFace(face)
-                                                    },
-                                                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
-                                                )
-                                            }
-                                        }
-                                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                                    }
-                                }
-                            }
-                            if (marketFaces.isEmpty()) {
-                                item(key = "market-face-empty") {
-                                    Text(
-                                        text = "该表情包暂时没有可用资源",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .transformedHeight(this, transformationSpec)
-                                            .padding(horizontal = 4.dp, vertical = 4.dp),
-                                        style = MaterialTheme.typography.bodySmall,
+                                            )
+                                            onSelectSystemFace(face)
+                                        },
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
                                     )
                                 }
                             }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -1223,137 +1021,6 @@ private fun EmotionOptionButton(
                 },
                 modifier = Modifier.size(28.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun MarketFaceOptionButton(
-    face: EmotionRepository.Selection.MarketFace,
-    onClick: () -> Unit,
-    modifier: Modifier,
-) {
-    var previewPath by remember(
-        face.epId,
-        face.eId,
-        face.staticPath,
-        face.dynamicPath,
-        face.jsonPath,
-        face.width,
-        face.height,
-    ) {
-        mutableStateOf<String?>(null)
-    }
-    var previewDrawable by remember(
-        face.epId,
-        face.eId,
-        face.staticPath,
-        face.dynamicPath,
-        face.jsonPath,
-        face.width,
-        face.height,
-    ) {
-        mutableStateOf<Drawable?>(null)
-    }
-    var previewResolved by remember(
-        face.epId,
-        face.eId,
-        face.staticPath,
-        face.dynamicPath,
-        face.jsonPath,
-        face.width,
-        face.height,
-    ) {
-        mutableStateOf(false)
-    }
-    var previewDrawableVersion by remember(
-        face.epId,
-        face.eId,
-        face.staticPath,
-        face.dynamicPath,
-        face.jsonPath,
-        face.width,
-        face.height,
-    ) {
-        mutableStateOf(0)
-    }
-    LaunchedEffect(
-        face.epId,
-        face.eId,
-        face.staticPath,
-        face.dynamicPath,
-        face.jsonPath,
-        face.width,
-        face.height,
-    ) {
-        previewPath = null
-        previewDrawable = null
-        previewResolved = false
-        previewDrawableVersion = 0
-        EmotionRepository.loadMarketFacePreview(face) { preview ->
-            previewPath = preview.path
-            previewDrawable = preview.drawable
-            previewResolved = true
-            previewDrawableVersion++
-        }
-    }
-    val thumbnailState by produceState<MarketFaceThumbnailState>(
-        initialValue = MarketFaceThumbnailState.Loading,
-        previewPath,
-        previewDrawable,
-        previewResolved,
-    ) {
-        value = when {
-            !previewResolved -> MarketFaceThumbnailState.Loading
-            else -> {
-                val bitmap = previewPath?.let { path ->
-                    withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
-                }
-                when {
-                    bitmap != null -> MarketFaceThumbnailState.Ready(bitmap)
-                    previewDrawable != null -> MarketFaceThumbnailState.DrawableReady(
-                        previewDrawable!!,
-                    )
-                    else -> MarketFaceThumbnailState.Unavailable
-                }
-            }
-        }
-    }
-    Button(onClick = onClick, modifier = modifier) {
-        when (val state = thumbnailState) {
-            MarketFaceThumbnailState.Loading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
-                )
-            }
-
-            is MarketFaceThumbnailState.Ready -> {
-                ComposeImage(
-                    bitmap = state.bitmap.asImageBitmap(),
-                    contentDescription = face.label,
-                    modifier = Modifier.size(36.dp),
-                    contentScale = ContentScale.Fit,
-                )
-            }
-
-            is MarketFaceThumbnailState.DrawableReady -> {
-                val currentDrawableVersion = previewDrawableVersion
-                AndroidView(
-                    factory = { viewContext ->
-                        android.widget.ImageView(viewContext).apply {
-                            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                        }
-                    },
-                    update = { imageView ->
-                        imageView.tag = currentDrawableVersion
-                        imageView.setImageDrawable(state.drawable)
-                    },
-                    modifier = Modifier.size(36.dp),
-                )
-            }
-
-            MarketFaceThumbnailState.Unavailable -> Text(face.label)
         }
     }
 }
@@ -1496,7 +1163,6 @@ private fun imgMarkerTransformation(
     imageCount: Int,
     atMentions: List<AtMention>,
     faceCount: Int,
-    marketFaceCount: Int,
     highlightColor: Color,
 ): VisualTransformation {
     return VisualTransformation { original ->
@@ -1508,7 +1174,6 @@ private fun imgMarkerTransformation(
         var slotIdx = 0
         var atIdx = 0
         var faceIdx = 0
-        var marketFaceIdx = 0
         for (i in text.indices) {
             if (text[i] == IMG_MARKER) {
                 val label = if (imageCount > 1) "[图片${slotIdx + 1}]" else "[图片]"
@@ -1532,13 +1197,6 @@ private fun imgMarkerTransformation(
                 }
                 repeat(label.length) { origOffsets.add(i) }
                 faceIdx++
-            } else if (text[i] == MARKET_FACE_MARKER) {
-                val label = if (marketFaceCount > 1) "[大表情${marketFaceIdx + 1}]" else "[大表情]"
-                display.withStyle(SpanStyle(color = highlightColor, fontWeight = FontWeight.Bold)) {
-                    append(label)
-                }
-                repeat(label.length) { origOffsets.add(i) }
-                marketFaceIdx++
             } else {
                 display.append(text[i])
                 origOffsets.add(i)

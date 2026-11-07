@@ -53,9 +53,8 @@ fun SettingsScreen(
     onOpenInteraction: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenBackground: () -> Unit,
-    onOpenCall: () -> Unit,
     onOpenData: () -> Unit,
-    onOpenAboutHub: () -> Unit,
+    onOpenAbout: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
@@ -106,18 +105,8 @@ fun SettingsScreen(
                 SettingsNavButton(
                     icon = Icons.Default.Sync,
                     title = "后台",
-                    subtitle = "保活、刷新与 Wear",
+                    subtitle = "保活与刷新",
                     onClick = onOpenBackground,
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
-            }
-            item(key = "settings-call") {
-                SettingsNavButton(
-                    icon = Icons.Default.Call,
-                    title = "通话",
-                    subtitle = "视频前台与返回行为",
-                    onClick = onOpenCall,
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec),
                 )
@@ -132,13 +121,13 @@ fun SettingsScreen(
                     transformationSpec = transformationSpec,
                 )
             }
-            item(key = "settings-about-hub") {
+            item(key = "settings-about") {
                 SettingsHubEntry(
                     title = "关于",
-                    subtitle = "更新、诊断与版本",
+                    subtitle = "版本与应用信息",
                     icon = Icons.Default.Info,
                     reportName = "关于",
-                    onClick = onOpenAboutHub,
+                    onClick = onOpenAbout,
                     transformationSpec = transformationSpec,
                 )
             }
@@ -411,87 +400,6 @@ fun InteractionSettingsScreen(
                     onCheckedChange = settingsVm::setFullscreenDialogs,
                     label = "全屏任务页面",
                     secondaryLabel = "确认和输入任务使用完整圆屏舞台",
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun DeveloperToolsSettingsScreen(
-    settingsVm: SettingsViewModel,
-    onOpenPacketTool: () -> Unit,
-    onBack: () -> Unit,
-) {
-    val settings by settingsVm.settings.collectAsState()
-    var showPacketWarn by remember { mutableStateOf(false) }
-    if (showPacketWarn) {
-        QmceConfirmScreen(
-            title = "风险提示",
-            detail = "发包工具可能导致账号异常或协议风险，仅供开发调试。确认继续？",
-            confirmLabel = "我了解风险",
-            onConfirm = {
-                showPacketWarn = false
-                onOpenPacketTool()
-            },
-            onBack = { showPacketWarn = false },
-        )
-        return
-    }
-
-    BackHandler(onBack = onBack)
-    val listState = rememberTransformingLazyColumnState()
-    val transformationSpec = rememberTransformationSpec()
-    QmceScreenScaffold(scrollState = listState) { contentPadding ->
-        TransformingLazyColumn(
-            state = listState,
-            contentPadding = contentPadding,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "developer-header") {
-                SettingsListHeader(
-                    text = "开发工具",
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
-            }
-            item(key = "developer-warning") {
-                Text(
-                    "以下功能存在协议与账号风险，打开前会再次确认。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec)
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-            item(key = "developer-packet-enable") {
-                SettingsSwitch(
-                    checked = settings.packetToolEnabled,
-                    onCheckedChange = settingsVm::setPacketToolEnabled,
-                    label = "启用发包工具",
-                    secondaryLabel = "默认关闭，打开后仍需确认",
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
-            }
-            item(key = "developer-packet-tool") {
-                SettingsNavButton(
-                    icon = Icons.AutoMirrored.Filled.Send,
-                    title = "发包工具",
-                    subtitle = if (settings.packetToolEnabled) {
-                        "发送 PB、OIDB 或 Ark 消息"
-                    } else {
-                        "请先打开上方开关"
-                    },
-                    onClick = {
-                        if (settings.packetToolEnabled) {
-                            showPacketWarn = true
-                        }
-                    },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec),
                 )

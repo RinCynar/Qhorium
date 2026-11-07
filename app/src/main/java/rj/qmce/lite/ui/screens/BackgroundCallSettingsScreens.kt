@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -22,17 +21,14 @@ import rj.qmce.lite.notify.QmceMessageRefreshScheduler
 import rj.qmce.lite.service.QmceKeepAliveService
 import rj.qmce.lite.ui.wear.QmceScreenScaffold
 import rj.qmce.lite.ui.wear.SettingsListHeader
-import rj.qmce.lite.ui.wear.SettingsNavButton
 import rj.qmce.lite.ui.wear.SettingsSubHeader
 import rj.qmce.lite.ui.wear.SettingsSwitch
 import rj.qmce.lite.util.QmceDevice
 import rj.qmce.lite.viewmodel.SettingsViewModel
-import rj.qmce.lite.wear.QmceWatchlistStore
 
 @Composable
 fun BackgroundSettingsScreen(
     settingsVm: SettingsViewModel,
-    onOpenWatchlist: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -42,9 +38,6 @@ fun BackgroundSettingsScreen(
     val transformationSpec = rememberTransformationSpec()
     val isWear = QmceDevice.isWear(context)
     val showLiveUpdates = isWear && Build.VERSION.SDK_INT >= 37
-    val watchlistEntries by QmceWatchlistStore.entries.collectAsState()
-    LaunchedEffect(Unit) { QmceWatchlistStore.load(context) }
-    val watchlistCount = watchlistEntries.count { it.chatType == 2 }
 
     QmceScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -147,77 +140,6 @@ fun BackgroundSettingsScreen(
                         modifier = Modifier.transformedHeight(this, transformationSpec),
                     )
                 }
-                item(key = "notify-complications") {
-                    SettingsSwitch(
-                        checked = settings.wearComplicationsEnabled,
-                        onCheckedChange = settingsVm::setWearComplicationsEnabled,
-                        label = "表盘复杂组件",
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec),
-                    )
-                }
-                item(key = "notify-tiles") {
-                    SettingsSwitch(
-                        checked = settings.wearTilesEnabled,
-                        onCheckedChange = settingsVm::setWearTilesEnabled,
-                        label = "消息 Tile",
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec),
-                    )
-                }
-                item(key = "notify-watchlist") {
-                    SettingsNavButton(
-                        title = "Tile 群聊选取",
-                        subtitle = if (watchlistCount <= 0) "尚未选取" else "已选 $watchlistCount 个群",
-                        onClick = onOpenWatchlist,
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CallSettingsScreen(
-    settingsVm: SettingsViewModel,
-    onBack: () -> Unit,
-) {
-    BackHandler(onBack = onBack)
-    val settings by settingsVm.settings.collectAsState()
-    val listState = rememberTransformingLazyColumnState()
-    val transformationSpec = rememberTransformationSpec()
-    QmceScreenScaffold(scrollState = listState) { contentPadding ->
-        TransformingLazyColumn(
-            state = listState,
-            contentPadding = contentPadding,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "call-header") {
-                SettingsListHeader(
-                    text = "通话",
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
-            }
-            item(key = "notify-video-strict") {
-                SettingsSwitch(
-                    checked = settings.videoStrictForeground,
-                    onCheckedChange = settingsVm::setVideoStrictForeground,
-                    label = "视频严格前台",
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
-            }
-            item(key = "notify-call-block-back") {
-                SettingsSwitch(
-                    checked = settings.callBlockBack,
-                    onCheckedChange = settingsVm::setCallBlockBack,
-                    label = "通话禁止返回退出",
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                )
             }
         }
     }

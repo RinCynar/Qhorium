@@ -84,11 +84,9 @@ import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportLifecycle
 import rj.qmce.lite.data.reporting.OfficialReportPage
 import rj.qmce.lite.kernel.KernelBridge
-import rj.qmce.lite.ui.screens.AboutHubScreen
 import rj.qmce.lite.ui.screens.AboutScreen
 import rj.qmce.lite.ui.screens.AppearanceSettingsScreen
 import rj.qmce.lite.ui.screens.BackgroundSettingsScreen
-import rj.qmce.lite.ui.screens.CallSettingsScreen
 import rj.qmce.lite.ui.screens.ChatDetailScreen
 import rj.qmce.lite.ui.screens.ChatComposerMenuScreen
 import rj.qmce.lite.ui.screens.ChatInputScreen
@@ -97,7 +95,6 @@ import rj.qmce.lite.ui.screens.ChatMembersScreen
 import rj.qmce.lite.ui.screens.ChatSettingsScreen
 import rj.qmce.lite.ui.screens.ContactPickerScreen
 import rj.qmce.lite.ui.screens.DataSettingsScreen
-import rj.qmce.lite.ui.screens.DeveloperToolsSettingsScreen
 import rj.qmce.lite.ui.screens.ForceExitConfirmationScreen
 import rj.qmce.lite.ui.screens.InteractionSettingsScreen
 import rj.qmce.lite.ui.screens.LocalImagePickerScreen
@@ -112,8 +109,6 @@ import rj.qmce.lite.notify.QmceNotifyLifecycle
 import rj.qmce.lite.notify.QmceRecentViewedChats
 import rj.qmce.lite.ui.screens.NotificationCenterScreen
 import rj.qmce.lite.ui.screens.NotificationSettingsScreen
-import rj.qmce.lite.ui.screens.PacketToolScreen
-import rj.qmce.lite.ui.screens.TileGroupPickerScreen
 import rj.qmce.lite.ui.screens.QZoneCommentScreen
 import rj.qmce.lite.ui.screens.QZoneComposerScreen
 import rj.qmce.lite.ui.screens.QZoneFeedDetailScreen
@@ -134,7 +129,6 @@ import rj.qmce.lite.viewmodel.GroupManagementViewModel
 import rj.qmce.lite.viewmodel.MyViewModel
 import rj.qmce.lite.util.PerfTrace
 import rj.qmce.lite.viewmodel.StorageViewModel
-import rj.qmce.lite.viewmodel.PacketToolViewModel
 import rj.qmce.lite.viewmodel.QZoneViewModel
 import rj.qmce.lite.viewmodel.SettingsViewModel
 
@@ -425,7 +419,6 @@ private fun WearApp() {
                 val qZoneVm: QZoneViewModel = viewModel()
                 val myVm: MyViewModel = viewModel()
                 val storageVm: StorageViewModel = viewModel()
-                val packetToolVm: PacketToolViewModel = viewModel()
                 var mainPage by remember { mutableStateOf(0) }
                 var nestedOfficialPageId by remember { mutableStateOf<String?>(null) }
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -458,20 +451,11 @@ private fun WearApp() {
                         QmceMessageNotifier.EXTRA_OPEN_CHAT,
                         false,
                     )
-                    val openTilePicker = intent.getBooleanExtra(
-                        QmceMessageNotifier.EXTRA_OPEN_TILE_GROUP_PICKER,
-                        false,
-                    )
-                    if (!openNotify && !openChat && !openTilePicker) return@LaunchedEffect
+                    if (!openNotify && !openChat) return@LaunchedEffect
                     intent.removeExtra(QmceMessageNotifier.EXTRA_OPEN_NOTIFY_CENTER)
                     intent.removeExtra(QmceMessageNotifier.EXTRA_OPEN_CHAT)
-                    intent.removeExtra(QmceMessageNotifier.EXTRA_OPEN_TILE_GROUP_PICKER)
                     if (openNotify) {
                         navController.navigate("notificationCenter") { launchSingleTop = true }
-                        return@LaunchedEffect
-                    }
-                    if (openTilePicker) {
-                        navController.navigate("tileGroupPicker") { launchSingleTop = true }
                         return@LaunchedEffect
                     }
                     val peerUid = intent.getStringExtra(QmceMessageNotifier.EXTRA_PEER_UID)
@@ -668,12 +652,7 @@ private fun WearApp() {
                                             launchSingleTop = true
                                         }
                                     },
-                                onOpenPacketTool = {
-                                    navController.navigate("packetToolChat") {
-                                        launchSingleTop = true
-                                    }
-                                },
-                                onOpenMembers = {
+                                    onOpenMembers = {
                                     navController.navigate("chatMembers") {
                                         launchSingleTop = true
                                     }
@@ -758,10 +737,6 @@ private fun WearApp() {
                         EmotionPickerScreen(
                             context = context,
                             onSelectSystemFace = { face ->
-                                chatDetailVm.sendSingleEmotion(context, face)
-                                navController.popBackStack()
-                            },
-                            onSelectMarketFace = { face ->
                                 chatDetailVm.sendSingleEmotion(context, face)
                                 navController.popBackStack()
                             },
@@ -879,16 +854,6 @@ private fun WearApp() {
                             onBack = { navController.popBackStack() },
                         )
                     }
-                    composable("packetToolChat") {
-                        val contact = selectedContact
-                        PacketToolScreen(
-                            peerUid = contact?.peerUid ?: "",
-                            peerName = contact?.peerName ?: "",
-                            chatType = contact?.chatType ?: 0,
-                            vm = packetToolVm,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
                     composable("settings") {
                         SettingsScreen(
                             onOpenAppearance = {
@@ -911,18 +876,13 @@ private fun WearApp() {
                                     launchSingleTop = true
                                 }
                             },
-                            onOpenCall = {
-                                navController.navigate("callSettings") {
-                                    launchSingleTop = true
-                                }
-                            },
                             onOpenData = {
                                 navController.navigate("dataSettings") {
                                     launchSingleTop = true
                                 }
                             },
-                            onOpenAboutHub = {
-                                navController.navigate("aboutHub") {
+                            onOpenAbout = {
+                                navController.navigate("about") {
                                     launchSingleTop = true
                                 }
                             },
@@ -936,17 +896,6 @@ private fun WearApp() {
                     }
                     composable("backgroundSettings") {
                         BackgroundSettingsScreen(
-                            settingsVm = settingsVm,
-                            onOpenWatchlist = {
-                                navController.navigate("tileGroupPicker") {
-                                    launchSingleTop = true
-                                }
-                            },
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                    composable("callSettings") {
-                        CallSettingsScreen(
                             settingsVm = settingsVm,
                             onBack = { navController.popBackStack() },
                         )
@@ -963,15 +912,6 @@ private fun WearApp() {
                                 navController.navigate("settingsClearChatCache") {
                                     launchSingleTop = true
                                 }
-                            },
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                    composable("aboutHub") {
-                        AboutHubScreen(
-                            settingsVm = settingsVm,
-                            onOpenAbout = {
-                                navController.navigate("about") { launchSingleTop = true }
                             },
                             onBack = { navController.popBackStack() },
                         )
@@ -1009,27 +949,6 @@ private fun WearApp() {
                             }
                         }
                     }
-                    composable("tileWatchlist") {
-                        LaunchedEffect(Unit) {
-                            navController.navigate("tileGroupPicker") {
-                                launchSingleTop = true
-                                popUpTo("tileWatchlist") { inclusive = true }
-                            }
-                        }
-                    }
-                    composable("tileGroupPicker") {
-                        val isWearDevice = rj.qmce.lite.util.QmceDevice.isWear(context)
-                        LaunchedEffect(isWearDevice) {
-                            if (!isWearDevice) navController.popBackStack()
-                        }
-                        if (isWearDevice) {
-                            TileGroupPickerScreen(
-                                runtime = runtime,
-                                contactsVm = contactsVm,
-                                onBack = { navController.popBackStack() },
-                            )
-                        }
-                    }
                     composable("appearanceSettings") {
                         AppearanceSettingsScreen(
                             settingsVm = settingsVm,
@@ -1039,17 +958,6 @@ private fun WearApp() {
                     composable("interactionSettings") {
                         InteractionSettingsScreen(
                             settingsVm = settingsVm,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                    composable("developerToolsSettings") {
-                        DeveloperToolsSettingsScreen(
-                            settingsVm = settingsVm,
-                            onOpenPacketTool = {
-                                navController.navigate("packetToolSettings") {
-                                    launchSingleTop = true
-                                }
-                            },
                             onBack = { navController.popBackStack() },
                         )
                     }
@@ -1182,12 +1090,6 @@ private fun WearApp() {
                     composable("about") {
                         AboutScreen(onBack = { navController.popBackStack() })
                     }
-                    composable("packetToolSettings") {
-                        PacketToolScreen(
-                            vm = packetToolVm,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
                 }
             } else {
                 OfficialReportPage(loginPageId) {
@@ -1278,9 +1180,7 @@ private fun officialPageId(route: String?, mainPage: Int): String? = when (route
     "qzoneImagePicker" -> OfficialReportBridge.PageIds.ALBUM_SELECTION
     "settingsClearChatCache" -> OfficialReportBridge.PageIds.CLEARS_MESSAGES
     "settings", "appearanceSettings", "interactionSettings", "notificationSettings",
-    "backgroundSettings", "callSettings", "dataSettings", "aboutHub",
-    "tileWatchlist", "tileGroupPicker", "syncDataSettings", "storageSettings", "packetToolSettings",
-    "aiSettings", "checkUpdate", "diagnostics", "about", "developerToolsSettings" ->
+    "backgroundSettings", "dataSettings", "syncDataSettings", "storageSettings", "about" ->
         OfficialReportBridge.PageIds.SETTINGS
     "chatSettings" -> OfficialReportBridge.PageIds.SETTINGS
     else -> null

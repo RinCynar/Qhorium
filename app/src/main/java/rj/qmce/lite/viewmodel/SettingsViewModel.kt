@@ -33,12 +33,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val voiceBackground: Boolean = true,
         val voiceOngoingSurface: Boolean = true,
         val videoStrictForeground: Boolean = true,
-        val callBlockBack: Boolean = true,
-        val wearComplicationsEnabled: Boolean = true,
-        val wearTilesEnabled: Boolean = false,
         val qmceVerboseLog: Boolean = BuildConfig.DEBUG,
         val qlogLocalWriteEnabled: Boolean = false,
-        val packetToolEnabled: Boolean = false,
     )
 
     private val preferences =
@@ -74,12 +70,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         voiceBackground = preferences.getBoolean(KEY_VOICE_BACKGROUND, true),
         voiceOngoingSurface = preferences.getBoolean(KEY_VOICE_ONGOING_SURFACE, true),
         videoStrictForeground = preferences.getBoolean(KEY_VIDEO_STRICT_FOREGROUND, true),
-        callBlockBack = preferences.getBoolean(KEY_CALL_BLOCK_BACK, true),
-        wearComplicationsEnabled = preferences.getBoolean(KEY_WEAR_COMPLICATIONS, true),
-        wearTilesEnabled = preferences.getBoolean(KEY_WEAR_TILES, false),
         qmceVerboseLog = preferences.getBoolean(KEY_QMCE_VERBOSE_LOG, BuildConfig.DEBUG),
         qlogLocalWriteEnabled = preferences.getBoolean(KEY_QLOG_LOCAL_WRITE, false),
-        packetToolEnabled = preferences.getBoolean(KEY_PACKET_TOOL_ENABLED, false),
     )
 
     fun setShowTimeText(show: Boolean) = update { it.copy(showTimeText = show) }
@@ -109,10 +101,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setVoiceOngoingSurface(enabled: Boolean) = update { it.copy(voiceOngoingSurface = enabled) }
     fun setVideoStrictForeground(enabled: Boolean) =
         update { it.copy(videoStrictForeground = enabled) }
-    fun setCallBlockBack(enabled: Boolean) = update { it.copy(callBlockBack = enabled) }
-    fun setWearComplicationsEnabled(enabled: Boolean) =
-        update { it.copy(wearComplicationsEnabled = enabled) }
-    fun setWearTilesEnabled(enabled: Boolean) = update { it.copy(wearTilesEnabled = enabled) }
 
     fun setQmceVerboseLog(enabled: Boolean) {
         update { it.copy(qmceVerboseLog = enabled) }
@@ -123,9 +111,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         update { it.copy(qlogLocalWriteEnabled = enabled) }
         applyQlogLocalWriteEnabled(enabled)
     }
-
-    fun setPacketToolEnabled(enabled: Boolean) =
-        update { it.copy(packetToolEnabled = enabled) }
 
     private fun update(transform: (UiSettings) -> UiSettings) {
         val updated = transform(_settings.value)
@@ -151,12 +136,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .putBoolean(KEY_VOICE_BACKGROUND, updated.voiceBackground)
                 .putBoolean(KEY_VOICE_ONGOING_SURFACE, updated.voiceOngoingSurface)
                 .putBoolean(KEY_VIDEO_STRICT_FOREGROUND, updated.videoStrictForeground)
-                .putBoolean(KEY_CALL_BLOCK_BACK, updated.callBlockBack)
-                .putBoolean(KEY_WEAR_COMPLICATIONS, updated.wearComplicationsEnabled)
-                .putBoolean(KEY_WEAR_TILES, updated.wearTilesEnabled)
                 .putBoolean(KEY_QMCE_VERBOSE_LOG, updated.qmceVerboseLog)
                 .putBoolean(KEY_QLOG_LOCAL_WRITE, updated.qlogLocalWriteEnabled)
-                .putBoolean(KEY_PACKET_TOOL_ENABLED, updated.packetToolEnabled)
         }
     }
 
@@ -193,13 +174,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_VOICE_BACKGROUND = "voice_background"
         const val KEY_VOICE_ONGOING_SURFACE = "voice_ongoing_surface"
         const val KEY_VIDEO_STRICT_FOREGROUND = "video_strict_foreground"
-        const val KEY_CALL_BLOCK_BACK = "call_block_back"
-        const val KEY_WEAR_COMPLICATIONS = "wear_complications"
-        const val KEY_WEAR_TILES = "wear_tiles"
-        const val KEY_WATCHLIST_JSON = "tile_watchlist_json"
         const val KEY_QMCE_VERBOSE_LOG = "qmce_verbose_log"
         const val KEY_QLOG_LOCAL_WRITE = "qlog_local_write_enabled"
-        const val KEY_PACKET_TOOL_ENABLED = "packet_tool_enabled"
 
         const val REFRESH_PUSH_ONLY = "push_only"
         const val REFRESH_15S = "15s"

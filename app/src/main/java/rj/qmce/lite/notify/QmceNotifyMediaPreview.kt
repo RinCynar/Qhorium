@@ -101,7 +101,7 @@ internal object QmceNotifyMediaPreview {
             lower.endsWith("_aio.png") || lower.endsWith("_thu.png") || lower.endsWith(".png")
         }
         val candidate = (listOfNotNull(market.staticFacePath, staticPreferred) + paths)
-            .mapNotNull { it?.trim()?.takeIf(String::isNotBlank) }
+            .mapNotNull { it.trim().takeIf(String::isNotBlank) }
             .map(::File)
             .firstOrNull { it.isFile }
             ?: return null
