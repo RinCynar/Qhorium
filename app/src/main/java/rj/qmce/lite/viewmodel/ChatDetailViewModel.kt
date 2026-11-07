@@ -13,8 +13,6 @@ import androidx.lifecycle.viewModelScope
 import com.tencent.mobileqq.qroute.QRoute
 import com.tencent.qqnt.aio.api.IAIOFileTransfer
 import com.tencent.qqnt.kernelpublic.nativeinterface.Contact
-import com.tencent.qqnt.kernelpublic.nativeinterface.CalendarElement
-import com.tencent.qqnt.kernelpublic.nativeinterface.TextGiftElement
 import com.tencent.qqnt.kernel.nativeinterface.GetMsgsStatusEnum
 import com.tencent.qqnt.kernel.nativeinterface.InlineKeyboardClickInfo
 import com.tencent.qqnt.kernel.nativeinterface.MsgConstant
@@ -99,11 +97,6 @@ class ChatDetailViewModel : ViewModel() {
             val surpriseId: String? = null,
         ) : MessageContent
 
-        data class FaceBubble(
-            val summary: String,
-            val content: String? = null,
-        ) : MessageContent
-
         data class MarketFace(
             val name: String,
             val staticPath: String?,
@@ -111,13 +104,6 @@ class ChatDetailViewModel : ViewModel() {
             val width: Int,
             val height: Int,
             val element: MarketFaceElement? = null,
-        ) : MessageContent
-
-        data class Giphy(
-            val id: String,
-            val mediaUrl: String?,
-            val width: Int,
-            val height: Int,
         ) : MessageContent
 
         data class Voice(
@@ -205,12 +191,6 @@ class ChatDetailViewModel : ViewModel() {
             val description: String,
             val notice: String?,
             val iconUrl: String?,
-        ) : MessageContent
-
-        data class Calendar(
-            val title: String,
-            val description: String,
-            val expired: Boolean,
         ) : MessageContent
 
         data class InlineKeyboard(
@@ -1903,14 +1883,7 @@ class ChatDetailViewModel : ViewModel() {
                         )
                     } ?: MessageContent.Unsupported(element.elementType)
 
-                    element.giphyElement != null -> element.giphyElement?.let { giphy ->
-                        MessageContent.Giphy(
-                            id = giphy.id?.takeIf { it.isNotBlank() }.orEmpty(),
-                            mediaUrl = giphyMediaUrl(giphy.id),
-                            width = giphy.width,
-                            height = giphy.height,
-                        )
-                    } ?: MessageContent.Unsupported(element.elementType)
+                    element.giphyElement != null -> MessageContent.Text("[GIF]")
 
                     element.elementType == 6 && element.faceElement != null -> element.faceElement?.let { face ->
                         MessageContent.Face(
@@ -2000,14 +1973,22 @@ class ChatDetailViewModel : ViewModel() {
                         extractWalletCard(wallet, rec.senderUin == selfUin)
                     } ?: MessageContent.Unsupported(element.elementType)
 
-                    element.calendarElement != null -> element.calendarElement?.let(::extractCalendarCard)
-                        ?: MessageContent.Unsupported(element.elementType)
+                    element.calendarElement != null -> {
+                        val title = firstNonBlank(element.calendarElement?.summary, element.calendarElement?.msg) ?: "日程提醒"
+                        MessageContent.Text("[日程: $title]")
+                    }
 
-                    element.textGiftElement != null -> element.textGiftElement?.let(::extractTextGiftCard)
-                        ?: MessageContent.Unsupported(element.elementType)
+                    element.textGiftElement != null -> {
+                        val gift = element.textGiftElement
+                        val name = gift?.giftName?.takeIf { it.isNotBlank() } ?: "礼物"
+                        MessageContent.Text("[送出 $name]")
+                    }
 
-                    element.liveGiftElement != null -> element.liveGiftElement?.let(::extractLiveGiftCard)
-                        ?: MessageContent.Unsupported(element.elementType)
+                    element.liveGiftElement != null -> {
+                        val gift = element.liveGiftElement
+                        val name = gift?.kStrGiftName?.takeIf { it.isNotBlank() } ?: "直播礼物"
+                        MessageContent.Text("[直播送礼: $name]")
+                    }
 
                     element.arkElement != null -> element.arkElement?.let { ark ->
                         extractArkCard(ark, rec.subMsgType)
@@ -2044,8 +2025,17 @@ class ChatDetailViewModel : ViewModel() {
                     element.inlineKeyboardElement != null -> element.inlineKeyboardElement?.let(::extractInlineKeyboard)
                         ?: MessageContent.Unsupported(element.elementType)
 
-                    element.faceBubbleElement != null -> element.faceBubbleElement?.let(::extractFaceBubble)
-                        ?: MessageContent.Unsupported(element.elementType)
+                    element.faceBubbleElement != null -> {
+                        val fb = element.faceBubbleElement
+                        val summary = firstNonBlank(
+                            fb?.faceSummary,
+                            fb?.yellowFaceInfo?.compatibleText,
+                            fb?.yellowFaceInfo?.text,
+                            fb?.content,
+                            fb?.oldVersionStr,
+                        ) ?: "[表情]"
+                        MessageContent.Text(summary)
+                    }
 
                     element.textElement != null -> MessageContent.Text(element.textElement?.content.orEmpty())
                     else -> MessageContent.Unsupported(
@@ -2137,9 +2127,7 @@ class ChatDetailViewModel : ViewModel() {
             is MessageContent.Text -> content.value
             is MessageContent.Image -> "[图片]"
             is MessageContent.Face -> content.text
-            is MessageContent.FaceBubble -> content.summary
             is MessageContent.MarketFace -> content.name
-            is MessageContent.Giphy -> "[GIF]"
             is MessageContent.Voice -> "[语音]"
             is MessageContent.Video -> "[视频]"
             is MessageContent.File -> "[文件]"
@@ -2150,7 +2138,6 @@ class ChatDetailViewModel : ViewModel() {
             is MessageContent.SystemTip -> content.text
             is MessageContent.Location -> content.title
             is MessageContent.Wallet -> content.title
-            is MessageContent.Calendar -> content.title
             is MessageContent.InlineKeyboard -> "[机器人消息]"
             is MessageContent.Markdown -> content.value
             is MessageContent.CallRecord -> content.text
@@ -2212,19 +2199,6 @@ class ChatDetailViewModel : ViewModel() {
         return raw.contains("mannounce", ignoreCase = true) || raw.contains("群公告")
     }
 
-    private fun extractFaceBubble(
-        faceBubble: com.tencent.qqnt.kernel.nativeinterface.FaceBubbleElement,
-    ): MessageContent.FaceBubble {
-        val summary = firstNonBlank(
-            faceBubble.faceSummary,
-            faceBubble.yellowFaceInfo?.compatibleText,
-            faceBubble.yellowFaceInfo?.text,
-            faceBubble.content,
-            faceBubble.oldVersionStr,
-        ) ?: "[表情]"
-        val content = faceBubble.content?.trim()?.takeIf { it.isNotBlank() && it != summary }
-        return MessageContent.FaceBubble(summary = summary, content = content)
-    }
 
     private fun extractStructCard(xmlContent: String): MessageContent {
         val metadata = RichMessageMetadataParser.parseStructCard(xmlContent)
@@ -2281,45 +2255,6 @@ class ChatDetailViewModel : ViewModel() {
         return MessageContent.Wallet(title, description, notice, iconUrl)
     }
 
-    private fun extractCalendarCard(
-        calendar: CalendarElement,
-    ): MessageContent.Calendar = MessageContent.Calendar(
-        title = firstNonBlank(calendar.summary, calendar.msg) ?: "日程提醒",
-        description = calendar.msg?.takeIf { it.isNotBlank() }
-            ?.takeUnless { it == calendar.summary }
-            .orEmpty(),
-        expired = calendar.expireTimeMs > 0 && calendar.expireTimeMs <= System.currentTimeMillis(),
-    )
-
-    private fun extractTextGiftCard(
-        gift: TextGiftElement,
-    ): MessageContent.Card {
-        val sender = gift.senderNick?.takeIf { it.isNotBlank() }
-        val receiver = gift.receiverNick?.takeIf { it.isNotBlank() }
-        val description = when {
-            sender != null && receiver != null -> "$sender 赠送给 $receiver"
-            receiver != null -> "赠送给 $receiver"
-            else -> "礼物消息"
-        }
-        return MessageContent.Card(
-            title = gift.giftName?.takeIf { it.isNotBlank() } ?: "礼物",
-            description = description,
-            tag = "礼物",
-            previewUrl = gift.bgImageUrl?.takeIf(::isHttpUrl),
-        )
-    }
-
-    private fun extractLiveGiftCard(
-        gift: com.tencent.qqnt.kernel.nativeinterface.LiveGiftElement,
-    ): MessageContent.Card = MessageContent.Card(
-        title = gift.kStrGiftName?.takeIf { it.isNotBlank() } ?: "直播礼物",
-        description = gift.kUInt64GiftNum
-            .takeIf { it > 1L }
-            ?.let { "数量 × $it" }
-            .orEmpty(),
-        tag = "直播礼物",
-        previewUrl = null,
-    )
 
     private fun extractInlineKeyboard(
         keyboard: com.tencent.qqnt.kernel.nativeinterface.InlineKeyboardElement,
@@ -2419,15 +2354,6 @@ class ChatDetailViewModel : ViewModel() {
 
     private fun isHttpUrl(value: String): Boolean =
         value.startsWith("https://") || value.startsWith("http://")
-
-    private fun giphyMediaUrl(id: String?): String? {
-        val value = id?.trim().orEmpty()
-        return when {
-            value.startsWith("https://") || value.startsWith("http://") -> value
-            value.matches(Regex("[A-Za-z0-9_-]{3,128}")) -> "https://i.giphy.com/$value.gif"
-            else -> null
-        }
-    }
 
     private fun extractForwardCard(
         xmlContent: String,

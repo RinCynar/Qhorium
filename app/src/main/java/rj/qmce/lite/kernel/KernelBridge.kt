@@ -422,6 +422,10 @@ object KernelBridge {
     @Volatile
     private var msfConnectionBridgeRegistered = false
 
+    @Volatile
+    var isMsfConnected: Boolean = false
+        private set
+
     private var msfConnectionListener: com.tencent.qqnt.watch.mainframe.api.IMsfConnPushListener? = null
 
     @Volatile
@@ -1186,10 +1190,13 @@ object KernelBridge {
     }
 
     private fun updateMsfKernelStatus(runtime: AppRuntime, status: MsfStatusType) {
+        val connected = status == MsfStatusType.KCONNECTED
+        isMsfConnected = connected
+        rj.qmce.lite.data.OnlineStatus.onMsfConnectionChanged(connected)
         runCatching {
             runtime.getRuntimeService(IKernelService::class.java, "")
                 .setOnMsfStatusChanged(status, MsfChangeReasonType.KAUTO, 0)
-            QmceLog.d(TAG, "msfBridge: status=$status")
+            QmceLog.d(TAG, "msfBridge: status=$status connected=$connected")
         }.onFailure { error ->
             QmceLog.w(TAG, "msfBridge: status=$status failed", error)
         }

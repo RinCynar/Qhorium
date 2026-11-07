@@ -156,12 +156,6 @@ private fun List<ChatDetailViewModel.MessageContent>.copyableText(): String =
                             .filter(String::isNotBlank).joinToString("\n")
                     )
                 }
-                filterIsInstance<ChatDetailViewModel.MessageContent.Calendar>().forEach {
-                    add(
-                        listOf(it.title, it.description).filter(String::isNotBlank)
-                            .joinToString("\n")
-                    )
-                }
             }.filter(String::isNotBlank).joinToString("\n")
         }
         .ifBlank {

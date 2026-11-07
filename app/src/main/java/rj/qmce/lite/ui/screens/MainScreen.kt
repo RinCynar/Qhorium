@@ -1,22 +1,14 @@
 package rj.qmce.lite.ui.screens
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.HorizontalPageIndicator
@@ -26,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rj.qmce.lite.QmceApplication
 import rj.qmce.lite.kernel.KernelBridge
-import rj.qmce.lite.ui.settingsVm
 import rj.qmce.lite.viewmodel.ChatDetailViewModel
 import rj.qmce.lite.viewmodel.ChatListViewModel
 import rj.qmce.lite.viewmodel.ContactsViewModel
@@ -124,75 +115,66 @@ fun MainScreen(
         }
     }
 
-    HorizontalPagerScaffold(
-        pagerState = pagerState,
-        // The app renders its own top-aligned indicator below (see TopPageIndicator), so the
-        // scaffold's default bottom indicator is disabled here. HorizontalPagerScaffold is still
-        // used to coordinate TimeText visibility with page-swipe gestures.
-        pageIndicator = null,
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (showPageIndicator) TopPageIndicator(pagerState, pointsUp = !showTimeText)
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.weight(1f),
-            ) { page ->
-                when (page) {
-                    0 -> ChatListScreen(
-                        uin = uin,
-                        runtime = runtime,
-                        isPageVisible = page == pagerState.currentPage,
-                        onLogout = onLogout,
-                        onOpenChat = onOpenChat,
-                        onRetryKernel = { kernelRetryNonce++ },
-                        onOpenNotificationCenter = onOpenNotificationCenter,
-                        vm = chatListVm,
-                    )
-
-                    1 -> ContactsScreen(
-                        vm = contactsVm,
-                        onOpenChat = { uid, uin, name ->
-                            onOpenChatFromContacts(uid, uin, name, 1)
-                        },
-                        onOpenGroup = onOpenGroupFromContacts,
-                        onOpenProfile = onOpenContactProfile,
-                        onRetryKernel = { kernelRetryNonce++ },
-                    )
-
-                    2 -> QZoneScreen(
-                        vm = qZoneVm,
-                        onOpenComposer = onOpenQZoneComposer,
-                        onOpenDetail = onOpenQZoneDetail,
-                    )
-
-                    3 -> MyScreen(
-                        uin = uin,
-                        onOpenSettings = onOpenSettings,
-                        onOpenLogoutConfirmation = onOpenLogoutConfirmation,
-                        onForceExit = onForceExit,
-                        vm = myVm,
-                    )
-                }
-            }
+    val indicatorPagerState = rememberPagerState(
+        initialPage = pagerState.currentPage,
+        pageCount = { 4 },
+    )
+    LaunchedEffect(pagerState.currentPage) {
+        if (indicatorPagerState.currentPage != pagerState.currentPage) {
+            indicatorPagerState.scrollToPage(pagerState.currentPage)
         }
     }
-}
 
-@Composable
-private fun TopPageIndicator(
-    pagerState: androidx.wear.compose.foundation.pager.PagerState,
-    pointsUp: Boolean,
-) {
-    val settings by settingsVm.settings.collectAsState()
-    if (!settings.showTimeText) {
-        HorizontalPageIndicator(
-            pagerState = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .wrapContentHeight(Alignment.CenterVertically)
-                .graphicsLayer { scaleY = if (pointsUp) -1f else 1f },
-        )
+    HorizontalPagerScaffold(
+        pagerState = pagerState,
+        pageIndicator = if (showPageIndicator) {
+            {
+                HorizontalPageIndicator(
+                    pagerState = indicatorPagerState,
+                )
+            }
+        } else null,
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            when (page) {
+                0 -> ChatListScreen(
+                    uin = uin,
+                    runtime = runtime,
+                    isPageVisible = page == pagerState.currentPage,
+                    onLogout = onLogout,
+                    onOpenChat = onOpenChat,
+                    onRetryKernel = { kernelRetryNonce++ },
+                    onOpenNotificationCenter = onOpenNotificationCenter,
+                    vm = chatListVm,
+                )
+
+                1 -> ContactsScreen(
+                    vm = contactsVm,
+                    onOpenChat = { uid, uin, name ->
+                        onOpenChatFromContacts(uid, uin, name, 1)
+                    },
+                    onOpenGroup = onOpenGroupFromContacts,
+                    onOpenProfile = onOpenContactProfile,
+                    onRetryKernel = { kernelRetryNonce++ },
+                )
+
+                2 -> QZoneScreen(
+                    vm = qZoneVm,
+                    onOpenComposer = onOpenQZoneComposer,
+                    onOpenDetail = onOpenQZoneDetail,
+                )
+
+                3 -> MyScreen(
+                    uin = uin,
+                    onOpenSettings = onOpenSettings,
+                    onOpenLogoutConfirmation = onOpenLogoutConfirmation,
+                    onForceExit = onForceExit,
+                    vm = myVm,
+                )
+            }
+        }
     }
 }

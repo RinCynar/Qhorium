@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,7 +66,6 @@ fun ChatInfoScreen(
     vm: ChatDetailViewModel,
     onOpenMembers: () -> Unit,
     onOpenGroupInfo: () -> Unit,
-    onOpenMessageSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     groupInfoVm: GroupInfoViewModel = viewModel(),
 ) {
@@ -227,26 +225,6 @@ fun ChatInfoScreen(
                         secondaryLabel = { Text("群号、公告和权限信息") },
                     ) { Text("群资料") }
                 }
-            }
-            item(key = "chat-info-message-search") {
-                Button(
-                    onClick = onOpenMessageSearch,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec)
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    colors = ButtonDefaults.filledTonalButtonColors(),
-                    contentPadding = ButtonDefaults.ButtonWithLargeIconContentPadding,
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            modifier = Modifier.size(ButtonDefaults.LargeIconSize),
-                        )
-                    },
-                    secondaryLabel = { Text("在已加载消息中查找") },
-                ) { Text("搜索聊天记录") }
             }
             item(key = "chat-info-settings") {
                 Button(

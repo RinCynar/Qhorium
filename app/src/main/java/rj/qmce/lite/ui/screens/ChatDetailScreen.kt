@@ -311,46 +311,9 @@ fun ChatDetailScreen(
     var pendingReplyNavigation by remember(peerUid, chatType) {
         mutableStateOf<ChatDetailViewModel.MessageContent.Reply?>(null)
     }
-    var showMessageSearch by remember(peerUid, chatType) { mutableStateOf(false) }
-    var messageSearchQuery by remember(peerUid, chatType) { mutableStateOf("") }
     var highlightedMessageKey by remember(peerUid, chatType) { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) {
         onDispose { onReportingPageChanged(null) }
-    }
-    val messageSearchMatches = remember(messages, messageSearchQuery) {
-        val query = messageSearchQuery.trim()
-        if (query.isBlank()) emptyList() else messages.filter { message ->
-            message.text.contains(query, ignoreCase = true) ||
-                    message.senderNick.contains(query, ignoreCase = true)
-        }.takeLast(20).asReversed()
-    }
-    val searchScope = rememberCoroutineScope()
-
-    if (showMessageSearch) {
-        ChatMessageSearchScreen(
-            query = messageSearchQuery,
-            matches = messageSearchMatches,
-            isLoadingOlder = isLoadingOlder,
-            canLoadOlder = hasOlderMessages,
-            onQueryChange = { messageSearchQuery = it },
-            onLoadOlder = { vm.loadOlderMessages() },
-            onSelect = { target ->
-                showMessageSearch = false
-                highlightedMessageKey = target.stableKey
-                val targetIndex = timelineItems.indexOfFirst { item ->
-                    (item as? ChatTimelineItem.Message)?.message?.stableKey == target.stableKey
-                }
-                if (targetIndex >= 0) {
-                    searchScope.launch {
-                        listState.animateScrollToItem(targetIndex)
-                        delay(1_500)
-                        if (highlightedMessageKey == target.stableKey) highlightedMessageKey = null
-                    }
-                }
-            },
-            onBack = { showMessageSearch = false },
-        )
-        return
     }
     val context = LocalContext.current
     val mediaSaveScope = rememberCoroutineScope()
@@ -874,7 +837,6 @@ fun ChatDetailScreen(
                         vm = vm,
                         onOpenMembers = onOpenMembers,
                         onOpenGroupInfo = onOpenGroupInfo,
-                        onOpenMessageSearch = { showMessageSearch = true },
                         onOpenSettings = onOpenChatSettings,
                     )
                 }
@@ -889,7 +851,6 @@ fun ChatDetailScreen(
                     vm = vm,
                     onOpenMembers = onOpenMembers,
                     onOpenGroupInfo = onOpenGroupInfo,
-                    onOpenMessageSearch = { showMessageSearch = true },
                     onOpenSettings = onOpenChatSettings,
                 )
             }
@@ -1439,7 +1400,6 @@ internal fun MessageBubble(
     val bubbleShape = messageBubbleShape(message.isSelf)
     val isSingleMedia = isFaceOnlyMessage || message.contents.singleOrNull().let {
         it is ChatDetailViewModel.MessageContent.Image ||
-                it is ChatDetailViewModel.MessageContent.Giphy ||
                 it is ChatDetailViewModel.MessageContent.Video
     }
 
@@ -1704,20 +1664,8 @@ private fun MessageContentItem(
             FaceMessageContent(content, forcedSize = forcedSize)
         }
 
-        is ChatDetailViewModel.MessageContent.FaceBubble -> {
-            Text(
-                content.summary,
-                color = LocalContentColor.current,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-
         is ChatDetailViewModel.MessageContent.MarketFace -> {
             LocalMarketFace(content)
-        }
-
-        is ChatDetailViewModel.MessageContent.Giphy -> GiphyMessageContent(content) { mediaUrl ->
-            onOpenMedia(ViewerMedia("${message.stableKey}:$contentIndex", mediaUrl, "GIF"))
         }
 
         is ChatDetailViewModel.MessageContent.Voice -> VoiceMessageContent(
@@ -1772,7 +1720,6 @@ private fun MessageContentItem(
         is ChatDetailViewModel.MessageContent.SystemTip -> SystemTipLine(content.text)
         is ChatDetailViewModel.MessageContent.Location -> LocationMessageContent(content)
         is ChatDetailViewModel.MessageContent.Wallet -> WalletMessageContent(content)
-        is ChatDetailViewModel.MessageContent.Calendar -> CalendarMessageContent(content)
         is ChatDetailViewModel.MessageContent.InlineKeyboard -> InlineKeyboardMessageContent(
             message = message,
             content = content,
@@ -1797,8 +1744,7 @@ private fun MessageContentItem(
 private fun hasMediaBubbleBackground(message: ChatDetailViewModel.UiMsg): Boolean =
     message.contents.any { content ->
         content is ChatDetailViewModel.MessageContent.Image ||
-                content is ChatDetailViewModel.MessageContent.Video ||
-                content is ChatDetailViewModel.MessageContent.Giphy
+                content is ChatDetailViewModel.MessageContent.Video
     }
 
 @Composable
@@ -1996,43 +1942,6 @@ private fun FaceMessageContent(
     }
 }
 
-@Composable
-private fun GiphyMessageContent(
-    content: ChatDetailViewModel.MessageContent.Giphy,
-    onOpen: (String) -> Unit,
-) {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val mediaUrl = content.mediaUrl
-    var failed by remember(mediaUrl) { mutableStateOf(false) }
-    val size = mediaSize(content.width, content.height)
-    val sizePx = with(density) {
-        Size(size.width.roundToPx(), size.height.roundToPx())
-    }
-    if (mediaUrl == null || failed) {
-        MediaPlaceholder(size, if (mediaUrl == null) "GIF不可用" else "GIF加载失败")
-    } else {
-        Card(
-            onClick = { onOpen(mediaUrl) },
-            modifier = Modifier.size(size.width, size.height),
-            colors = androidx.wear.compose.material3.CardDefaults.cardColors(
-                containerColor = Color.Transparent,
-            ),
-            contentPadding = PaddingValues(0.dp),
-        ) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(mediaUrl)
-                    .size(sizePx)
-                    .build(),
-                contentDescription = "GIF 动图",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit,
-                onError = { failed = true },
-            )
-        }
-    }
-}
 
 @Composable
 private fun MessageFallback(label: String) {
@@ -2748,53 +2657,6 @@ private fun WalletMessageContent(content: ChatDetailViewModel.MessageContent.Wal
     }
 }
 
-@Composable
-private fun CalendarMessageContent(content: ChatDetailViewModel.MessageContent.Calendar) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(MessageBubbleCornerRadius))
-            .padding(9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "日程",
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(5.dp))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = content.title,
-                color = LocalContentColor.current,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            content.description.takeIf { it.isNotBlank() }?.let { description ->
-                Text(
-                    text = description,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (content.expired) {
-                Text(
-                    text = "已过期",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun InlineKeyboardMessageContent(
@@ -2934,7 +2796,6 @@ private fun resolveViewerModel(
         is ChatDetailViewModel.MessageContent.Image -> LocalMediaResolver.firstAvailable(
             content.localPaths + content.thumbnailPaths + listOfNotNull(content.sourcePath),
         )
-        is ChatDetailViewModel.MessageContent.Giphy -> content.mediaUrl
         else -> null
     }
 }

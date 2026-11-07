@@ -15,7 +15,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     data class UiSettings(
         val showTimeText: Boolean = true,
         val showPageIndicator: Boolean = true,
-        val showOnlineStatus: Boolean = false,
+        val showOnlineStatus: Boolean = true,
         val fullscreenDialogs: Boolean = true,
         val autoScale: Boolean = true,
         val manualScale: Float = DEFAULT_MANUAL_SCALE,
@@ -45,7 +45,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun loadSettings(): UiSettings = UiSettings(
         showTimeText = preferences.getBoolean(KEY_SHOW_TIME_TEXT, true),
         showPageIndicator = preferences.getBoolean(KEY_SHOW_PAGE_INDICATOR, true),
-        showOnlineStatus = preferences.getBoolean(KEY_SHOW_ONLINE_STATUS, false),
+        showOnlineStatus = preferences.getBoolean(KEY_SHOW_ONLINE_STATUS, true),
         fullscreenDialogs = preferences.getBoolean(KEY_FULLSCREEN_DIALOGS, true),
         autoScale = preferences.getBoolean(KEY_AUTO_SCALE, true),
         manualScale = preferences.getFloat(KEY_MANUAL_SCALE, DEFAULT_MANUAL_SCALE)

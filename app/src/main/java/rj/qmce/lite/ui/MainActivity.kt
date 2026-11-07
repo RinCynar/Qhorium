@@ -70,6 +70,8 @@ import androidx.wear.compose.navigation.currentBackStackEntryAsState
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.tencent.qqnt.kernel.nativeinterface.RecentContactInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import rj.qmce.lite.QmceApplication
@@ -230,12 +232,8 @@ private fun WearApp() {
         Log.w("QMCE", "ui: returned to login after official logout=$reason")
     }
 
-    DisposableEffect(isLoggedIn, loggedUin) {
+    DisposableEffect(isLoggedIn) {
         if (isLoggedIn) {
-            val ps = KernelBridge.getKernelService()?.getProfileService()
-            if (ps != null && loggedUin.isNotEmpty()) {
-                OnlineStatus.start(ps, loggedUin)
-            }
             val observer = {
                 onlineDesc = OnlineStatus.describe()
                 onlineKnown = OnlineStatus.known()
@@ -249,8 +247,23 @@ private fun WearApp() {
             onlineDesc = null
             onlineKnown = false
             onlineTermKind = null
-            Log.e("QMCE", "Not logged in")
+            Log.d("QMCE", "Not logged in")
             onDispose {}
+        }
+    }
+
+    LaunchedEffect(isLoggedIn, loggedUin) {
+        if (isLoggedIn && loggedUin.isNotEmpty()) {
+            var attempts = 0
+            while (isActive && attempts < 40) {
+                val ps = KernelBridge.getKernelService()?.getProfileService()
+                if (ps != null) {
+                    OnlineStatus.start(ps, loggedUin)
+                    break
+                }
+                attempts++
+                delay(500L)
+            }
         }
     }
 
