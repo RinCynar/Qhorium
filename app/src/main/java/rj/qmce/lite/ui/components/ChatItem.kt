@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,9 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.tencent.qqnt.kernel.nativeinterface.RecentContactInfo
 import java.io.File
 import java.text.SimpleDateFormat
@@ -65,6 +69,7 @@ fun ChatItem(
     contact: RecentContactInfo,
     reportParams: Map<String, *> = emptyMap<String, Any?>(),
     reuseIdentifier: String? = null,
+    isScrolling: Boolean = false,
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -129,9 +134,19 @@ fun ChatItem(
         ),
         contentPadding = ButtonDefaults.ButtonWithExtraLargeIconContentPadding,
         icon = {
+            val context = LocalContext.current
+            val avatarRequest = remember(avatarModel, isScrolling) {
+                ImageRequest.Builder(context)
+                    .data(avatarModel)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(if (isScrolling) CachePolicy.DISABLED else CachePolicy.ENABLED)
+                    .networkCachePolicy(if (isScrolling) CachePolicy.DISABLED else CachePolicy.ENABLED)
+                    .crossfade(false)
+                    .build()
+            }
             Box {
                 AsyncImage(
-                    model = avatarModel,
+                    model = avatarRequest,
                     contentDescription = null,
                     modifier = Modifier
                         .size(ButtonDefaults.ExtraLargeIconSize)

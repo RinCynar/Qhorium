@@ -52,6 +52,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import coil3.compose.AsyncImage
+import coil3.request.crossfade
 import com.tencent.mobileqq.qroute.QRoute
 import com.tencent.qqnt.avatar.IAvatarLoaderApi
 import kotlinx.coroutines.launch
@@ -264,6 +265,7 @@ fun ContactsScreen(
                                                         localAvatar = avatarModel,
                                                         remoteAvatarUrls = buddy.avatarUrls,
                                                         fallbackText = buddy.nick.take(1).ifEmpty { "?" },
+                                                        isScrolling = listState.isScrollInProgress,
                                                     )
                                                     if (buddy.uin > 0L) {
                                                         AndroidView(
@@ -322,6 +324,7 @@ fun ContactsScreen(
                                                 localAvatar = null,
                                                 remoteAvatarUrls = listOf(group.avatarUrl),
                                                 fallbackText = group.groupName.take(1).ifEmpty { "群" },
+                                                isScrolling = listState.isScrollInProgress,
                                             )
                                         }
                                     },
@@ -649,6 +652,7 @@ private fun ContactAvatar(
     localAvatar: File?,
     remoteAvatarUrls: List<String>,
     fallbackText: String,
+    isScrolling: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     var remoteIndex by remember(localAvatar, remoteAvatarUrls) { mutableIntStateOf(0) }
@@ -659,8 +663,18 @@ private fun ContactAvatar(
         color = scheme.primary,
     )
     if (model != null) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val request = remember(model, isScrolling) {
+            coil3.request.ImageRequest.Builder(context)
+                .data(model)
+                .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
+                .diskCachePolicy(if (isScrolling) coil3.request.CachePolicy.DISABLED else coil3.request.CachePolicy.ENABLED)
+                .networkCachePolicy(if (isScrolling) coil3.request.CachePolicy.DISABLED else coil3.request.CachePolicy.ENABLED)
+                .crossfade(false)
+                .build()
+        }
         AsyncImage(
-            model = model,
+            model = request,
             contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()

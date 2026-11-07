@@ -143,6 +143,8 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         PerfTrace.reset("ColdStart")
         PerfTrace.mark("MainActivity.onCreate")
+        window.setBackgroundDrawableResource(android.R.color.black)
+        window.decorView.setBackgroundColor(android.graphics.Color.BLACK)
         val reportHost = FrameLayout(this).apply {
             id = View.generateViewId()
         }

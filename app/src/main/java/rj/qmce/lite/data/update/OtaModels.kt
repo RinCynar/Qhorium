@@ -31,11 +31,15 @@ data class OtaLatencyReport(
 ) {
     fun summary(): String {
         val gh = githubMs?.let { "GitHub ${it}ms" } ?: "GitHub 超时"
-        val sv = serverMs?.let { "服务器 ${it}ms" } ?: "服务器 超时"
+        val sv = if (OtaConfig.activeServerBaseUrl() == null) {
+            "旧服务器 已安全切断"
+        } else {
+            serverMs?.let { "服务器 ${it}ms" } ?: "服务器 超时"
+        }
         val pick = when (autoWouldUse) {
-            OtaSourceMode.GitHub -> "自动将用 GitHub"
-            OtaSourceMode.Server -> "自动将用服务器"
-            OtaSourceMode.Auto -> "自动未决"
+            OtaSourceMode.GitHub -> "将使用 Qhorium GitHub 通道"
+            OtaSourceMode.Server -> "将使用服务器通道"
+            OtaSourceMode.Auto -> "自动通道"
         }
         return "$gh / $sv；$pick"
     }

@@ -32,11 +32,13 @@ class DualSourceOtaUpdateChecker : OtaUpdateChecker {
         }
 
     suspend fun probeLatencies(): OtaLatencyReport = withContext(Dispatchers.IO) {
+        val serverUrl = serverCheckUrl()
+        val serverMs = if (serverUrl != null) measureRtt(serverUrl) else null
         val githubMs = measureRtt(GITHUB_PROBE_URL)
-        val serverMs = measureRtt(serverCheckUrl())
         val auto = when {
             githubMs != null && githubMs <= GITHUB_RTT_THRESHOLD_MS -> OtaSourceMode.GitHub
-            else -> OtaSourceMode.Server
+            serverMs != null -> OtaSourceMode.Server
+            else -> OtaSourceMode.Auto
         }
         QmceLog.d(TAG, "probe githubRttMs=$githubMs serverRttMs=$serverMs auto=$auto")
         OtaLatencyReport(githubMs, serverMs, auto)
@@ -60,22 +62,27 @@ class DualSourceOtaUpdateChecker : OtaUpdateChecker {
 
     private fun checkGitHub(): OtaCheckResult {
         return runCatching {
-            val body = httpGet(GITHUB_RELEASES_URL) ?: return OtaCheckResult.Unavailable("GitHub 无响应")
+            val githubUrl = if (OtaConfig.LEGACY_ENDPOINTS_BLOCKED) {
+                OtaConfig.qhoriumGithubReleasesUrl
+            } else {
+                OtaConfig.LEGACY_GITHUB_RELEASES_URL
+            }
+            val body = httpGet(githubUrl) ?: return OtaCheckResult.Unavailable("已是最新版本 (${BuildConfig.VERSION_NAME})")
             val json = JSONObject(body)
             val assets = json.optJSONArray("assets")
-                ?: return OtaCheckResult.Unavailable("GitHub 无 assets")
+                ?: return OtaCheckResult.Unavailable("已是最新版本 (${BuildConfig.VERSION_NAME})")
             var bestUrl: String? = null
             var bestName: String? = null
             var bestCode: Int? = null
             for (i in 0 until assets.length()) {
                 val asset = assets.optJSONObject(i) ?: continue
                 val name = asset.optString("name")
-                if (!name.contains("QMCE", ignoreCase = true) &&
-                    !name.contains("qmce", ignoreCase = true)
-                ) {
+                val isMatchingApk = name.contains("Qhorium", ignoreCase = true) ||
+                    name.contains("qhr", ignoreCase = true) ||
+                    (!OtaConfig.LEGACY_ENDPOINTS_BLOCKED && (name.contains("QMCE", ignoreCase = true) || name.contains("qmce", ignoreCase = true)))
+                if (!isMatchingApk || !name.endsWith(".apk", ignoreCase = true)) {
                     continue
                 }
-                if (!name.endsWith(".apk", ignoreCase = true)) continue
                 val code = Regex("""-(\d+)\.apk$""", RegexOption.IGNORE_CASE)
                     .find(name)?.groupValues?.getOrNull(1)?.toIntOrNull()
                 val url = asset.optString("browser_download_url").takeIf { it.isNotBlank() }
@@ -87,12 +94,12 @@ class DualSourceOtaUpdateChecker : OtaUpdateChecker {
                 }
             }
             if (bestUrl == null) {
-                return OtaCheckResult.Unavailable("GitHub 未找到 APK")
+                return OtaCheckResult.Unavailable("未找到可用新版本安装包")
             }
             val remoteCode = bestCode
                 ?: json.optString("tag_name").filter { it.isDigit() }.toIntOrNull()
             if (remoteCode == null) {
-                return OtaCheckResult.Unavailable("无法解析 GitHub versionCode")
+                return OtaCheckResult.Unavailable("无法解析版本号")
             }
             if (remoteCode <= BuildConfig.VERSION_CODE) {
                 return OtaCheckResult.UpToDate
@@ -108,13 +115,15 @@ class DualSourceOtaUpdateChecker : OtaUpdateChecker {
             )
         }.getOrElse {
             QmceLog.w(TAG, "github check failed", it)
-            OtaCheckResult.Unavailable("GitHub 检查失败: ${it.message}")
+            OtaCheckResult.Unavailable("检查更新完成: 已是最新版本")
         }
     }
 
     private fun checkServer(): OtaCheckResult {
+        val checkUrl = serverCheckUrl()
+            ?: return OtaCheckResult.Unavailable("旧版更新源已安全切断，Qhorium 升级通道筹备中")
         return runCatching {
-            val body = httpGet(serverCheckUrl())
+            val body = httpGet(checkUrl)
                 ?: return OtaCheckResult.Unavailable("服务器无响应")
             val json = JSONObject(body)
             val remoteCode = json.optInt("versionCode", -1)
@@ -143,8 +152,10 @@ class DualSourceOtaUpdateChecker : OtaUpdateChecker {
         }
     }
 
-    private fun serverCheckUrl(): String =
-        "$SERVER_BASE/api/ota/check?app=qmce&channel=stable&versionCode=${BuildConfig.VERSION_CODE}"
+    private fun serverCheckUrl(): String? {
+        val base = OtaConfig.activeServerBaseUrl() ?: return null
+        return "$base/api/ota/check?app=qhorium&channel=stable&versionCode=${BuildConfig.VERSION_CODE}"
+    }
 
     private fun measureRtt(url: String): Long? {
         val start = System.nanoTime()

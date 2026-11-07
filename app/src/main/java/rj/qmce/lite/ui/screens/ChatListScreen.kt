@@ -145,6 +145,7 @@ fun ChatListScreen(
                                 contact = contact,
                                 reportParams = elementParams,
                                 reuseIdentifier = exposureKey,
+                                isScrolling = listState.isScrollInProgress,
                                 onClick = {
                                     OfficialReportBridge.reportChatListItemClick(
                                         target = null,

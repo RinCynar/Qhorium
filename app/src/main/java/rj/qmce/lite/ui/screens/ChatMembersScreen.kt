@@ -39,6 +39,7 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import rj.qmce.lite.data.chat.GroupMemberRepository
 import rj.qmce.lite.viewmodel.ChatDetailViewModel
+import coil3.request.crossfade
 import java.io.File
 import java.util.Locale
 
@@ -250,8 +251,16 @@ private fun MemberAvatar(member: GroupMemberRepository.Member) {
             color = MaterialTheme.colorScheme.primary,
         )
         if (model != null) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val request = remember(model) {
+                coil3.request.ImageRequest.Builder(context)
+                    .data(model)
+                    .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
+                    .crossfade(false)
+                    .build()
+            }
             coil3.compose.AsyncImage(
-                model = model,
+                model = request,
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()

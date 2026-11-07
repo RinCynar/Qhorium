@@ -99,7 +99,8 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
         return ImageLoader.Builder(context)
             .memoryCache {
                 MemoryCache.Builder()
-                    .maxSizePercent(context, 0.12)
+                    .maxSizePercent(context, 0.20)
+                    .strongReferencesEnabled(true)
                     .build()
             }
             .components {
