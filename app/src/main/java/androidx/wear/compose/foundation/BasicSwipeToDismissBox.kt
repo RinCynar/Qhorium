@@ -112,6 +112,7 @@ public fun BasicSwipeToDismissBox(
     backgroundKey: Any = SwipeToDismissKeys.Background,
     contentKey: Any = SwipeToDismissKeys.Content,
     userSwipeEnabled: Boolean = true,
+    backgroundVisible: Boolean = false,
     content: @Composable BoxScope.(isBackground: Boolean) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -171,7 +172,7 @@ public fun BasicSwipeToDismissBox(
             val isBackground = it == 0
 
             key(if (isBackground) backgroundKey else contentKey) {
-                if (!isBackground || (userSwipeEnabled && isSwiping)) {
+                if (!isBackground || (userSwipeEnabled && isSwiping) || backgroundVisible) {
                     val parentScreenActive = LocalScreenIsActive.current
                     CompositionLocalProvider(
                         LocalScreenIsActive provides (!isBackground && parentScreenActive)
@@ -230,12 +231,14 @@ public fun BasicSwipeToDismissBox(
                                     } else {
                                         Modifier.drawWithContent {
                                             drawContent()
-                                            val color =
-                                                backgroundScrimColor.copy(
-                                                    alpha =
-                                                        MAX_BACKGROUND_SCRIM_ALPHA * (1 - progress)
-                                                )
-                                            drawRect(color = color)
+                                            if (isSwiping) {
+                                                val color =
+                                                    backgroundScrimColor.copy(
+                                                        alpha =
+                                                            MAX_BACKGROUND_SCRIM_ALPHA * (1 - progress)
+                                                    )
+                                                drawRect(color = color)
+                                            }
                                         }
                                     }
                                 )
@@ -300,6 +303,7 @@ public fun BasicSwipeToDismissBox(
     backgroundKey: Any = SwipeToDismissKeys.Background,
     contentKey: Any = SwipeToDismissKeys.Content,
     userSwipeEnabled: Boolean = true,
+    backgroundVisible: Boolean = false,
     content: @Composable BoxScope.(isBackground: Boolean) -> Unit,
 ) {
     LaunchedEffect(state.currentValue) {
@@ -314,6 +318,7 @@ public fun BasicSwipeToDismissBox(
         backgroundKey = backgroundKey,
         contentKey = contentKey,
         userSwipeEnabled = userSwipeEnabled,
+        backgroundVisible = backgroundVisible,
         content = content,
     )
 }

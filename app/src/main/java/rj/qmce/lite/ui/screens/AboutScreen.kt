@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -24,7 +23,6 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import rj.qmce.lite.BuildConfig
-import rj.qmce.lite.data.update.OtaUpdateSession
 import rj.qmce.lite.ui.wear.QmceListHeader
 
 @Composable
@@ -91,29 +89,6 @@ fun AboutScreen(
                         .transformedHeight(this, transformationSpec)
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
-            }
-            item(key = "about-update-header") {
-                QmceListHeader(
-                    text = "升级",
-                    modifier = Modifier.transformedHeight(this, transformationSpec),
-                    transformation = SurfaceTransformation(transformationSpec),
-                )
-            }
-            item(key = "about-check-update") {
-                Button(
-                    onClick = { OtaUpdateSession.checkForUpdate() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .transformedHeight(this, transformationSpec)
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                    transformation = SurfaceTransformation(transformationSpec),
-                    colors = ButtonDefaults.filledTonalButtonColors(),
-                    contentPadding = ButtonDefaults.ButtonWithLargeIconContentPadding,
-                    icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
-                    secondaryLabel = {
-                        Text("检查是否有新版本", maxLines = 2)
-                    },
-                ) { Text("检查升级") }
             }
             item(key = "about-notice-header") {
                 QmceListHeader(

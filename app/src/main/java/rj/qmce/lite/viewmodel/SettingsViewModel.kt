@@ -4,15 +4,11 @@ import android.app.Application
 import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
-import com.microsoft.appcenter.analytics.Analytics
-import com.microsoft.appcenter.crashes.Crashes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import rj.qmce.lite.BuildConfig
 import rj.qmce.lite.Flag
-import rj.qmce.lite.data.update.OtaDownloadMode
-import rj.qmce.lite.data.update.OtaSourceMode
 import rj.qmce.lite.util.QmceLog
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,10 +36,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val callBlockBack: Boolean = true,
         val wearComplicationsEnabled: Boolean = true,
         val wearTilesEnabled: Boolean = false,
-        val otaRequireWifi: Boolean = true,
-        val otaSourceMode: String = OtaSourceMode.Auto.pref,
-        val otaLastDownloadMode: String = OtaDownloadMode.WatchBrowser.pref,
-        val appCenterReportingEnabled: Boolean = true,
         val qmceVerboseLog: Boolean = BuildConfig.DEBUG,
         val qlogLocalWriteEnabled: Boolean = false,
         val packetToolEnabled: Boolean = false,
@@ -85,15 +77,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         callBlockBack = preferences.getBoolean(KEY_CALL_BLOCK_BACK, true),
         wearComplicationsEnabled = preferences.getBoolean(KEY_WEAR_COMPLICATIONS, true),
         wearTilesEnabled = preferences.getBoolean(KEY_WEAR_TILES, false),
-        otaRequireWifi = preferences.getBoolean(KEY_OTA_REQUIRE_WIFI, true),
-        otaSourceMode = preferences.getString(KEY_OTA_SOURCE_MODE, OtaSourceMode.Auto.pref)
-            .orEmpty()
-            .ifBlank { OtaSourceMode.Auto.pref },
-        otaLastDownloadMode = preferences
-            .getString(KEY_OTA_LAST_DOWNLOAD_MODE, OtaDownloadMode.WatchBrowser.pref)
-            .orEmpty()
-            .ifBlank { OtaDownloadMode.WatchBrowser.pref },
-        appCenterReportingEnabled = preferences.getBoolean(KEY_APP_CENTER_REPORTING, true),
         qmceVerboseLog = preferences.getBoolean(KEY_QMCE_VERBOSE_LOG, BuildConfig.DEBUG),
         qlogLocalWriteEnabled = preferences.getBoolean(KEY_QLOG_LOCAL_WRITE, false),
         packetToolEnabled = preferences.getBoolean(KEY_PACKET_TOOL_ENABLED, false),
@@ -130,16 +113,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setWearComplicationsEnabled(enabled: Boolean) =
         update { it.copy(wearComplicationsEnabled = enabled) }
     fun setWearTilesEnabled(enabled: Boolean) = update { it.copy(wearTilesEnabled = enabled) }
-    fun setOtaRequireWifi(enabled: Boolean) = update { it.copy(otaRequireWifi = enabled) }
-    fun setOtaSourceMode(mode: OtaSourceMode) = update { it.copy(otaSourceMode = mode.pref) }
-    fun setOtaLastDownloadMode(mode: OtaDownloadMode) =
-        update { it.copy(otaLastDownloadMode = mode.pref) }
-
-    fun setAppCenterReportingEnabled(enabled: Boolean) {
-        val effective = if (BuildConfig.DEBUG) true else enabled
-        update { it.copy(appCenterReportingEnabled = effective) }
-        applyAppCenterEnabled(effective)
-    }
 
     fun setQmceVerboseLog(enabled: Boolean) {
         update { it.copy(qmceVerboseLog = enabled) }
@@ -181,10 +154,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .putBoolean(KEY_CALL_BLOCK_BACK, updated.callBlockBack)
                 .putBoolean(KEY_WEAR_COMPLICATIONS, updated.wearComplicationsEnabled)
                 .putBoolean(KEY_WEAR_TILES, updated.wearTilesEnabled)
-                .putBoolean(KEY_OTA_REQUIRE_WIFI, updated.otaRequireWifi)
-                .putString(KEY_OTA_SOURCE_MODE, updated.otaSourceMode)
-                .putString(KEY_OTA_LAST_DOWNLOAD_MODE, updated.otaLastDownloadMode)
-                .putBoolean(KEY_APP_CENTER_REPORTING, updated.appCenterReportingEnabled)
                 .putBoolean(KEY_QMCE_VERBOSE_LOG, updated.qmceVerboseLog)
                 .putBoolean(KEY_QLOG_LOCAL_WRITE, updated.qlogLocalWriteEnabled)
                 .putBoolean(KEY_PACKET_TOOL_ENABLED, updated.packetToolEnabled)
@@ -228,10 +197,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_WEAR_COMPLICATIONS = "wear_complications"
         const val KEY_WEAR_TILES = "wear_tiles"
         const val KEY_WATCHLIST_JSON = "tile_watchlist_json"
-        const val KEY_OTA_REQUIRE_WIFI = "ota_require_wifi"
-        const val KEY_OTA_SOURCE_MODE = "ota_source_mode"
-        const val KEY_OTA_LAST_DOWNLOAD_MODE = "ota_last_download_mode"
-        const val KEY_APP_CENTER_REPORTING = "app_center_reporting_enabled"
         const val KEY_QMCE_VERBOSE_LOG = "qmce_verbose_log"
         const val KEY_QLOG_LOCAL_WRITE = "qlog_local_write_enabled"
         const val KEY_PACKET_TOOL_ENABLED = "packet_tool_enabled"
@@ -241,18 +206,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val REFRESH_30S = "30s"
         const val REFRESH_1M = "1m"
         const val REFRESH_5M = "5m"
-
-        fun isAppCenterReportingEnabled(context: Context): Boolean =
-            context.applicationContext
-                .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_APP_CENTER_REPORTING, true)
-
-        fun applyAppCenterEnabled(enabled: Boolean) {
-            runCatching {
-                Analytics.setEnabled(enabled)
-                Crashes.setEnabled(enabled)
-            }
-        }
 
         fun applyQlogLocalWriteEnabled(enabled: Boolean) {
             Flag.DISABLE_QLOG_LOCAL_WRITE = !enabled
@@ -267,20 +220,5 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             QmceLog.setVerboseEnabled(verbose)
             applyQlogLocalWriteEnabled(qlogWrite)
         }
-
-        fun setOtaLastDownloadMode(context: Context, mode: OtaDownloadMode) {
-            context.applicationContext
-                .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-                .edit {
-                    putString(KEY_OTA_LAST_DOWNLOAD_MODE, mode.pref)
-                }
-        }
-
-        fun otaLastDownloadMode(context: Context): OtaDownloadMode =
-            OtaDownloadMode.fromPref(
-                context.applicationContext
-                    .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-                    .getString(KEY_OTA_LAST_DOWNLOAD_MODE, OtaDownloadMode.WatchBrowser.pref),
-            )
     }
 }

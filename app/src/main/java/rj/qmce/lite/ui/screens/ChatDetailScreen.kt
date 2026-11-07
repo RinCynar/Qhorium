@@ -132,8 +132,6 @@ import mqq.app.AppRuntime
 import rj.qmce.lite.data.call.CallMode
 import rj.qmce.lite.data.call.CallStartResult
 import rj.qmce.lite.data.call.QmceCallController
-import rj.qmce.lite.data.chat.LinkPreviewRepository
-import rj.qmce.lite.data.chat.LinkPreviewState
 import rj.qmce.lite.data.chat.LocalMediaResolver
 import rj.qmce.lite.data.chat.MessageNavigationSnapshot
 import rj.qmce.lite.data.chat.PttPlaybackPhase
@@ -1806,7 +1804,6 @@ private fun MessageContentItem(
             onLongClick
         )
 
-        is ChatDetailViewModel.MessageContent.LinkPreview -> LinkPreviewMessageContent(content)
         is ChatDetailViewModel.MessageContent.CallRecord -> CallRecordMessageContent(
             content,
             onRequestCall
@@ -2267,71 +2264,6 @@ private fun String.toMarkdownDisplayText(): String = this
     .replace(Regex("__(.+?)__"), "$1")
     .replace(Regex("`([^`]+)`"), "$1")
     .replace(markdownBulletRegex, "• ")
-
-@Composable
-private fun LinkPreviewMessageContent(content: ChatDetailViewModel.MessageContent.LinkPreview) {
-    val context = LocalContext.current
-    LaunchedEffect(content.url, content.state) {
-        if (content.state is LinkPreviewState.Idle) LinkPreviewRepository.request(content.url)
-    }
-    when (val state = content.state) {
-        LinkPreviewState.Idle,
-        LinkPreviewState.Loading,
-            -> Text(
-            text = "正在解析链接…",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        is LinkPreviewState.Ready -> {
-            val preview = state.preview
-            Card(
-                onClick = { openHttpLink(context, preview.url) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = androidx.wear.compose.material3.CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                shape = RoundedCornerShape(MessageBubbleCornerRadius),
-                contentPadding = PaddingValues(8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (preview.imageUrl != null) {
-                        AsyncImage(
-                            model = preview.imageUrl,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(6.dp)),
-                            contentScale = ContentScale.Crop,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            preview.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        preview.description?.takeIf(String::isNotBlank)?.let { description ->
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                description,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        LinkPreviewState.Failed -> Unit
-    }
-}
 
 @Composable
 private fun CallRecordMessageContent(

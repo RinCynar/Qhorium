@@ -19,9 +19,6 @@ import coil3.SingletonImageLoader
 import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
-import com.microsoft.appcenter.AppCenter
-import com.microsoft.appcenter.analytics.Analytics
-import com.microsoft.appcenter.crashes.Crashes
 import com.tencent.mmkv.MMKV
 import com.tencent.mobileqq.qmmkv.MMKVHandlerImpl
 import com.tencent.mobileqq.qmmkv.QMMKV
@@ -37,7 +34,6 @@ import rj.qmce.lite.data.LoginPrefs
 import rj.qmce.lite.data.emotion.EmotionAssetBridge
 import rj.qmce.lite.data.emotion.EmotionRepository
 import rj.qmce.lite.data.reporting.OfficialReportBridge
-import rj.qmce.lite.data.update.OtaUpdateSession
 import rj.qmce.lite.kernel.KernelBridge
 import rj.qmce.lite.fix.LegacyKiller
 import rj.qmce.lite.fix.PackageSignatureProvider
@@ -274,18 +270,7 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
         runCatching { KernelBridge.ensureEarlyNativeBootstrap() }
             .onFailure { QmceLog.e("QMCE", "early native bootstrap failed", it) }
         QmceLog.d("QMCE", "onCreate super done")
-        AppCenter.start(
-            this, "c67e55e2-35a3-4197-a7f6-633d41127b17",
-            Analytics::class.java, Crashes::class.java
-        )
-        val appCenterOn = if (BuildConfig.DEBUG) {
-            true
-        } else {
-            SettingsViewModel.isAppCenterReportingEnabled(this)
-        }
-        SettingsViewModel.applyAppCenterEnabled(appCenterOn)
         CrashCatcher.install(this)
-        OtaUpdateSession.ensure(this)
         QmceLog.d("QMCE", "crashcatcher init done")
         if (BuildConfig.DEBUG) {
             SignatureProbe.dump(this)

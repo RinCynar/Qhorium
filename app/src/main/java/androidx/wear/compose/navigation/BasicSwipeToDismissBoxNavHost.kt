@@ -154,6 +154,8 @@ internal fun BasicSwipeToDismissBoxNavHost(
 
     BackHandler(enabled = backStack.size > 1, onBack = navigateBack)
 
+    val isTransitioning = !wearNavigator.isPop.value && animationProgress.value < 1f && previous != null
+
     BasicSwipeToDismissBox(
         onDismissed = navigateBack,
         state = swipeState,
@@ -161,6 +163,7 @@ internal fun BasicSwipeToDismissBoxNavHost(
         userSwipeEnabled = userSwipeEnabled && previous != null,
         backgroundKey = previous?.id ?: SwipeToDismissKeys.Background,
         contentKey = current.id,
+        backgroundVisible = isTransitioning,
     ) { isBackground ->
         BoxedStackEntryContent(
             entry = if (isBackground) previous else current,
@@ -170,27 +173,10 @@ internal fun BasicSwipeToDismissBoxNavHost(
                     modifier
                 } else {
                     modifier.graphicsLayer {
-                        val scaleProgression =
-                            NAV_HOST_ENTER_TRANSITION_EASING_STANDARD.transform(
-                                (animationProgress.value / 0.75f)
-                            )
-                        val alphaProgression =
-                            NAV_HOST_ENTER_TRANSITION_EASING_STANDARD.transform(
-                                (animationProgress.value / 0.25f)
-                            )
-                        val scale = lerp(0.75f, 1f, scaleProgression).coerceAtMost(1f)
-                        val alpha = lerp(0.1f, 1f, alphaProgression).coerceIn(0f, 1f)
-                        scaleX = scale
-                        scaleY = scale
-                        this.alpha = alpha
-                        clip = true
-                        shape = if (isRoundDevice) CircleShape else RectangleShape
+                        this.alpha = animationProgress.value.coerceIn(0f, 1f)
                     }
                 },
-            layerColor =
-                if (isBackground || wearNavigator.isPop.value) {
-                    Color.Unspecified
-                } else FLASH_COLOR,
+            layerColor = Color.Unspecified,
             animatable = animationProgress,
         )
     }
@@ -204,9 +190,7 @@ internal fun BasicSwipeToDismissBoxNavHost(
                     targetValue = 1f,
                     animationSpec =
                         tween(
-                            durationMillis =
-                                NAV_HOST_ENTER_TRANSITION_DURATION_MEDIUM +
-                                    NAV_HOST_ENTER_TRANSITION_DURATION_SHORT,
+                            durationMillis = 150,
                             easing = LinearEasing,
                         ),
                 )

@@ -1257,7 +1257,6 @@ private fun WearApp() {
                     }
                 }
             }
-            rj.qmce.lite.ui.ota.OtaUpdateDialogHost()
         }
     }
 }

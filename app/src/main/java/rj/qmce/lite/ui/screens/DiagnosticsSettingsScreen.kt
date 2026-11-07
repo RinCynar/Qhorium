@@ -59,18 +59,6 @@ fun DiagnosticsSettingsScreen(
                     modifier = Modifier.transformedHeight(this, transformationSpec),
                 )
             }
-            if (!BuildConfig.DEBUG) {
-                item(key = "appcenter-reporting") {
-                    SettingsSwitch(
-                        checked = settings.appCenterReportingEnabled,
-                        onCheckedChange = settingsVm::setAppCenterReportingEnabled,
-                        label = "崩溃与分析上报",
-                        secondaryLabel = "关闭可减少后台流量，默认开启",
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec),
-                    )
-                }
-            }
         }
     }
 }

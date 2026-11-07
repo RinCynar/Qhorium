@@ -6,7 +6,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Process
 import android.util.Log
-import com.microsoft.appcenter.crashes.Crashes
 import rj.qmce.lite.util.QmceLog
 import rj.qmce.lite.viewmodel.SettingsViewModel
 import java.text.SimpleDateFormat
@@ -84,7 +83,6 @@ object CrashCatcher {
             throwable
         )
         persistReport(context, report)
-        reportToAppCenter(context, report, throwable)
 
         val intent = Intent(context, rj.qmce.lite.ui.CrashActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -108,27 +106,6 @@ object CrashCatcher {
             .putString(KEY_STACKTRACE, report.stacktrace)
             .putLong("timestamp", System.currentTimeMillis())
             .commit()
-    }
-
-    private fun reportToAppCenter(context: Context, report: CrashReport, throwable: Throwable) {
-        if (!SettingsViewModel.isAppCenterReportingEnabled(context)) {
-            QmceLog.w(TAG, "App Center disabled; skip trackError report=${report.id}")
-            return
-        }
-        runCatching {
-            Crashes.trackError(
-                throwable,
-                mapOf(
-                    "qmce_report_id" to report.id,
-                    "qmce_process" to report.process,
-                    "qmce_thread" to report.thread,
-                    "qmce_fatal" to "true",
-                ),
-                emptyList(),
-            )
-        }.onFailure {
-            QmceLog.w(TAG, "App Center Crashes unavailable; local report is still saved", it)
-        }
     }
 
     private fun createReportId(): String {

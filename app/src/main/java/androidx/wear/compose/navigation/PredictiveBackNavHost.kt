@@ -296,24 +296,16 @@ private fun DestinationContent(backStackEntry: NavBackStackEntry) {
     (backStackEntry.destination as WearNavigator.Destination).content(backStackEntry)
 }
 
+private const val TRANSITION_DURATION_MS = 150
+
 private val ENTER_TRANSITION =
-    slideInHorizontally(initialOffsetX = { it / 2 }, animationSpec = spring(0.8f, 300f)) +
-        scaleIn(initialScale = 0.8f, animationSpec = spring(1f, 500f)) +
-        fadeIn(animationSpec = spring(1f, 1500f))
+    fadeIn(animationSpec = tween(durationMillis = TRANSITION_DURATION_MS, easing = LinearEasing))
 private val EXIT_TRANSITION =
-    scaleOut(targetScale = 0.85f, animationSpec = spring(1f, 150f)) +
-        slideOutHorizontally(targetOffsetX = { -it / 2 }, animationSpec = spring(0.8f, 200f)) +
-        fadeOut(targetAlpha = 0.6f, animationSpec = spring(1f, 1400f))
+    fadeOut(animationSpec = tween(durationMillis = TRANSITION_DURATION_MS, easing = LinearEasing))
 private val POP_ENTER_TRANSITION =
-    scaleIn(initialScale = 0.8f, animationSpec = tween(easing = LinearEasing)) +
-        slideInHorizontally(
-            initialOffsetX = { -it / 2 },
-            animationSpec = tween(easing = LinearEasing),
-        ) +
-        fadeIn(initialAlpha = 0.5f, animationSpec = tween(easing = LinearEasing))
+    fadeIn(animationSpec = tween(durationMillis = TRANSITION_DURATION_MS, easing = LinearEasing))
 private val POP_EXIT_TRANSITION =
-    slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(easing = LinearEasing)) +
-        scaleOut(targetScale = 0.8f, animationSpec = tween(easing = LinearEasing))
+    fadeOut(animationSpec = tween(durationMillis = TRANSITION_DURATION_MS, easing = LinearEasing))
 
 private val TRANSITION_ANIMATION_SPEC =
-    spring<Float>(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)
+    tween<Float>(durationMillis = TRANSITION_DURATION_MS, easing = LinearEasing)

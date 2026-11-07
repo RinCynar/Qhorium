@@ -41,8 +41,6 @@ import rj.qmce.lite.data.chat.AtMention
 import rj.qmce.lite.data.chat.ChatRepository
 import rj.qmce.lite.data.chat.ChatSendPipeline
 import rj.qmce.lite.data.chat.GroupMemberRepository
-import rj.qmce.lite.data.chat.LinkPreviewRepository
-import rj.qmce.lite.data.chat.LinkPreviewState
 import rj.qmce.lite.data.chat.LocalMediaResolver
 import rj.qmce.lite.data.chat.MessageNavigationSnapshot
 import rj.qmce.lite.data.chat.MessageTokenCodec
@@ -231,10 +229,6 @@ class ChatDetailViewModel : ViewModel() {
         )
 
         data class Markdown(val value: String) : MessageContent
-        data class LinkPreview(
-            val url: String,
-            val state: LinkPreviewState,
-        ) : MessageContent
 
         data class CallRecord(
             val text: String,
@@ -457,7 +451,6 @@ class ChatDetailViewModel : ViewModel() {
 
     init {
         RichMediaRepository.setInvalidationListener { emitMessages() }
-        LinkPreviewRepository.setInvalidationListener { emitMessages() }
     }
 
     fun openChat(
@@ -1776,7 +1769,6 @@ class ChatDetailViewModel : ViewModel() {
         OfficialPttPlayer.stopAndRelease()
         chatRepository.close()
         RichMediaRepository.setInvalidationListener(null)
-        LinkPreviewRepository.setInvalidationListener(null)
         super.onCleared()
     }
 
@@ -2067,17 +2059,6 @@ class ChatDetailViewModel : ViewModel() {
             }
             if (content !is MessageContent.Text || content.value.isNotEmpty()) add(content)
         }
-        val previewUrl = asSequence()
-            .filterIsInstance<MessageContent.Text>()
-            .mapNotNull { content -> LinkPreviewRepository.firstSupportedUrl(content.value) }
-            .firstOrNull()
-            ?: asSequence()
-                .filterIsInstance<MessageContent.Markdown>()
-                .mapNotNull { content -> LinkPreviewRepository.firstSupportedUrl(content.value) }
-                .firstOrNull()
-        if (previewUrl != null) {
-            add(MessageContent.LinkPreview(previewUrl, LinkPreviewRepository.state(previewUrl)))
-        }
         if (isEmpty()) add(MessageContent.Unsupported(0))
     }
 
@@ -2172,7 +2153,6 @@ class ChatDetailViewModel : ViewModel() {
             is MessageContent.Calendar -> content.title
             is MessageContent.InlineKeyboard -> "[机器人消息]"
             is MessageContent.Markdown -> content.value
-            is MessageContent.LinkPreview -> ""
             is MessageContent.CallRecord -> content.text
             is MessageContent.Unsupported -> "暂不支持该消息展示"
         }

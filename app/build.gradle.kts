@@ -23,8 +23,8 @@ android {
         applicationId = "top.rincynar.qhr"
         minSdk = 23
         targetSdk = 37
-        versionCode = 34
-        versionName = "0.6.4-fix4"
+        versionCode = 35
+        versionName = "0.6.4-fix5"
         multiDexEnabled = true
         ndk {
             //noinspection ChromeOsAbiSupport
@@ -245,11 +245,6 @@ tasks.configureEach {
 */
 
 dependencies {
-    // AppCenter
-
-    implementation(libs.appcenter.analytics)
-    implementation(libs.appcenter.crashes)
-
     // QQ API：单 jar（含 Metadata）；R8 靠 -dontoptimize 规避大 Metadata NPE
     implementation(files("libs/qq-sdk.jar"))
     implementation(libs.commons.lang3)
