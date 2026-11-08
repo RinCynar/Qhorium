@@ -47,7 +47,6 @@ class QZoneFeedRepository {
     private var feedService: QZoneFeedService? = null
     private val lastRequestFailure = AtomicReference<String?>(null)
     private val lastNetworkSucceeded = AtomicBoolean(false)
-    private val hasRetriedOnBusiError = AtomicBoolean(false)
     private var refreshCompletion: CompletableDeferred<Unit>? = null
 
     suspend fun refresh(
@@ -73,28 +72,25 @@ class QZoneFeedRepository {
             return RefreshResult.Unavailable("账号未就绪")
         }
         service.m(uin, uin)
+        runCatching { service.q() }
         Log.d(TAG, "feed service initialized, uin=$uin")
         attachRequestCallback(service, uin)
         registerFeedObserver(service, onFeeds)
 
         val feedManager = service.i ?: return RefreshResult.Unavailable("FeedManager 不可用")
-        hasRetriedOnBusiError.set(false)
         lastRequestFailure.set(null)
         lastNetworkSucceeded.set(false)
         val cached = feedManager.n()
         if (!cached.isNullOrEmpty()) {
             Log.d(TAG, "loaded ${cached.size} cached feeds")
             onFeeds(cached, false)
-        } else {
-            Log.d(TAG, "cached feeds empty, clearing stale attachInfo before first request")
-            clearAttachInfo(service, feedManager, uin)
         }
 
         val deferred = CompletableDeferred<Unit>()
         refreshCompletion = deferred
 
-        requestRefresh(feedManager, force = true)
-        Log.d(TAG, "requested network feed refresh force=true")
+        requestRefresh(feedManager, force = false)
+        Log.d(TAG, "requested network feed refresh force=false")
 
         withTimeoutOrNull(6_000L) {
             deferred.await()
@@ -116,7 +112,7 @@ class QZoneFeedRepository {
         }
 
         val failure = lastRequestFailure.get()
-        if (failure != null && !failure.contains("busi data")) {
+        if (failure != null) {
             return RefreshResult.Unavailable(failure)
         }
         if (!lastNetworkSucceeded.get()) {
@@ -136,6 +132,7 @@ class QZoneFeedRepository {
     }
 
     private fun attachRequestCallback(service: QZoneFeedService, uin: Long) {
+        val previousListener = service.j ?: (service.i as? IFeedManager.RequestCallbackListener)
         service.j = object : IFeedManager.RequestCallbackListener {
             override fun k(
                 task: TaskWrapper?,
@@ -143,6 +140,7 @@ class QZoneFeedRepository {
                 response: BaseResponseWrapper?,
                 code: Int,
             ) {
+                runCatching { previousListener?.k(task, result, response, code) }
                 val respCode = runCatching { response?.a() }.getOrNull()
                 val respMsg = runCatching { response?.c() }.getOrNull().orEmpty()
                 Log.d(
@@ -150,37 +148,15 @@ class QZoneFeedRepository {
                     "feed callback k code=$code respCode=$respCode msg=$respMsg " +
                         "size=${runCatching { response?.b()?.size }.getOrNull()}",
                 )
-                val isBusiDataError = respCode == -10004 || respMsg.contains("busi data")
-                if (isBusiDataError && hasRetriedOnBusiError.compareAndSet(false, true)) {
-                    Log.w(
-                        TAG,
-                        "feed callback received busi data error (code=$code, respCode=$respCode), " +
-                            "auto-clearing stale attachInfo and retrying fresh page 0...",
-                    )
-                    clearAttachInfo(service, service.i, uin)
-                    lastRequestFailure.set(null)
-                    requestRefresh(service.i, force = true)
-                    return
-                }
 
                 if (code != 0) {
-                    if (isBusiDataError) {
-                        lastRequestFailure.set(null)
-                        lastNetworkSucceeded.set(true)
-                    } else {
-                        lastRequestFailure.set(
-                            if (respMsg.isNotBlank()) "空间请求失败：$respMsg" else "空间请求失败 code=$code",
-                        )
-                    }
+                    lastRequestFailure.set(
+                        if (respMsg.isNotBlank()) "空间请求失败：$respMsg (code=$code)" else "空间请求失败 code=$code",
+                    )
                 } else if (respCode != null && respCode != 0) {
-                    if (isBusiDataError) {
-                        lastRequestFailure.set(null)
-                        lastNetworkSucceeded.set(true)
-                    } else {
-                        lastRequestFailure.set(
-                            if (respMsg.isNotBlank()) "空间请求失败：$respMsg" else "空间请求失败 resp=$respCode",
-                        )
-                    }
+                    lastRequestFailure.set(
+                        if (respMsg.isNotBlank()) "空间请求失败：$respMsg (ret=$respCode)" else "空间请求失败 ret=$respCode",
+                    )
                 } else {
                     lastRequestFailure.set(null)
                     lastNetworkSucceeded.set(true)
@@ -189,53 +165,16 @@ class QZoneFeedRepository {
             }
 
             override fun o(task: TaskWrapper?, result: ResultWrapper?) {
+                runCatching { previousListener?.o(task, result) }
                 val qzResult = result?.b as? QZoneResult
                 val reason = qzResult?.message.orEmpty()
                 val code = qzResult?.returnCode ?: 0
                 Log.d(TAG, "feed callback o code=$code reason=$reason")
-                if (code == -10004 || reason.contains("busi data")) {
-                    lastRequestFailure.set(null)
-                    lastNetworkSucceeded.set(true)
-                } else if (reason.isNotBlank()) {
-                    lastRequestFailure.set(reason)
+                if (code != 0 || reason.isNotBlank()) {
+                    lastRequestFailure.set(if (reason.isNotBlank()) reason else "空间请求失败 code=$code")
                 }
                 refreshCompletion?.complete(Unit)
             }
-        }
-    }
-
-    private fun clearAttachInfo(service: QZoneFeedService?, feedManager: IFeedManager?, uin: Long) {
-        runCatching {
-            (feedManager as? FeedManager)?.C?.clear()
-            val spList = listOfNotNull(
-                runCatching { (feedManager as? FeedManager)?.s() }.getOrNull(),
-                runCatching { service?.e() }.getOrNull(),
-                runCatching {
-                    MobileQQ.getContext()?.getSharedPreferences("QZ_Feed_Setting_$uin", Context.MODE_PRIVATE)
-                }.getOrNull(),
-            )
-            val keysToRemove = listOf(
-                "feed_global_attachinfo",
-                "feed_global_tlv_attachinfo",
-                "feed_has_more",
-                "feed_refresh_size",
-                "feed_refresh_glob_attachinfo",
-                "feed_refresh_tlv_attachinfo",
-                "feed_refresh_feed_key",
-            )
-            for (sp in spList) {
-                val editor = sp.edit()
-                for (key in keysToRemove) {
-                    editor.remove(key)
-                    for (type in 0..3) {
-                        editor.remove("${key}_${uin}_$type")
-                    }
-                }
-                editor.commit()
-            }
-            Log.d(TAG, "cleared stale qzone attachInfo for uin=$uin")
-        }.onFailure { error ->
-            Log.w(TAG, "clearAttachInfo encountered error: ${error.message}", error)
         }
     }
 
@@ -416,7 +355,6 @@ class QZoneFeedRepository {
         feedService?.j = null
         feedService = null
         lastRequestFailure.set(null)
-        hasRetriedOnBusiError.set(false)
     }
 
     private fun registerFeedObserver(
@@ -433,11 +371,10 @@ class QZoneFeedRepository {
                     Log.d(TAG, "feed event: type=${event.a}")
                     if (event.a == FEED_EVENT_FAILED) {
                         Log.d(TAG, "feed event failed (777) received")
-                        val failure = lastRequestFailure.get()
-                        if (failure == null || failure.contains("busi data")) {
-                            lastNetworkSucceeded.set(true)
-                            lastRequestFailure.set(null)
+                        if (lastRequestFailure.get() == null) {
+                            lastRequestFailure.set("空间请求失败，请稍后重试")
                         }
+                        lastNetworkSucceeded.set(false)
                         refreshCompletion?.complete(Unit)
                         return
                     }

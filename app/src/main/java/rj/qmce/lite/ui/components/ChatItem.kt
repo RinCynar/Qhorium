@@ -135,12 +135,12 @@ fun ChatItem(
         contentPadding = ButtonDefaults.ButtonWithExtraLargeIconContentPadding,
         icon = {
             val context = LocalContext.current
-            val avatarRequest = remember(avatarModel, isScrolling) {
+            val avatarRequest = remember(avatarModel) {
                 ImageRequest.Builder(context)
                     .data(avatarModel)
                     .memoryCachePolicy(CachePolicy.ENABLED)
-                    .diskCachePolicy(if (isScrolling) CachePolicy.DISABLED else CachePolicy.ENABLED)
-                    .networkCachePolicy(if (isScrolling) CachePolicy.DISABLED else CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .networkCachePolicy(CachePolicy.ENABLED)
                     .crossfade(false)
                     .build()
             }

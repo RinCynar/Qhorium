@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
@@ -54,13 +53,10 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import coil3.compose.AsyncImage
 import coil3.request.crossfade
-import com.tencent.mobileqq.qroute.QRoute
-import com.tencent.qqnt.avatar.IAvatarLoaderApi
 import kotlinx.coroutines.launch
 import rj.qmce.lite.QmceApplication
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
-import rj.qmce.lite.fix.WatchAvatarViews
 import rj.qmce.lite.ui.settingsVm
 import rj.qmce.lite.ui.wear.QmceEmptyOrErrorState
 import rj.qmce.lite.ui.wear.QmceListHeader
@@ -267,25 +263,7 @@ fun ContactsScreen(
                                                         localAvatar = avatarModel,
                                                         remoteAvatarUrls = buddy.avatarUrls,
                                                         fallbackText = buddy.nick.take(1).ifEmpty { "?" },
-                                                        isScrolling = listState.isScrollInProgress,
                                                     )
-                                                    if (buddy.uin > 0L) {
-                                                        AndroidView(
-                                                            factory = { context ->
-                                                                WatchAvatarViews.create(context).also { avatarView ->
-                                                                    runCatching {
-                                                                        QRoute.api(IAvatarLoaderApi::class.java)
-                                                                            .build(context)
-                                                                            .target(avatarView)
-                                                                            .loadAvatarByGroupCode(buddy.uin, scope)
-                                                                    }
-                                                                }
-                                                            },
-                                                            modifier = Modifier
-                                                                .size(1.dp)
-                                                                .alpha(0f),
-                                                        )
-                                                    }
                                                 }
                                             },
                                             secondaryLabel = { Text(buddy.uin.toString(), maxLines = 1) },
@@ -326,7 +304,6 @@ fun ContactsScreen(
                                                 localAvatar = null,
                                                 remoteAvatarUrls = listOf(group.avatarUrl),
                                                 fallbackText = group.groupName.take(1).ifEmpty { "群" },
-                                                isScrolling = listState.isScrollInProgress,
                                             )
                                         }
                                     },
@@ -654,7 +631,6 @@ private fun ContactAvatar(
     localAvatar: File?,
     remoteAvatarUrls: List<String>,
     fallbackText: String,
-    isScrolling: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     var remoteIndex by remember(localAvatar, remoteAvatarUrls) { mutableIntStateOf(0) }
@@ -666,12 +642,12 @@ private fun ContactAvatar(
     )
     if (model != null) {
         val context = androidx.compose.ui.platform.LocalContext.current
-        val request = remember(model, isScrolling) {
+        val request = remember(model) {
             coil3.request.ImageRequest.Builder(context)
                 .data(model)
                 .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
-                .diskCachePolicy(if (isScrolling) coil3.request.CachePolicy.DISABLED else coil3.request.CachePolicy.ENABLED)
-                .networkCachePolicy(if (isScrolling) coil3.request.CachePolicy.DISABLED else coil3.request.CachePolicy.ENABLED)
+                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
+                .networkCachePolicy(coil3.request.CachePolicy.ENABLED)
                 .crossfade(false)
                 .build()
         }

@@ -16,6 +16,8 @@ import android.os.Process
 import androidx.multidex.MultiDex
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
 import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
@@ -97,6 +99,12 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
                 MemoryCache.Builder()
                     .maxSizePercent(context, 0.20)
                     .strongReferencesEnabled(true)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(64L * 1024 * 1024)
                     .build()
             }
             .components {
