@@ -281,7 +281,11 @@ private fun WearApp() {
                 val r = QmceApplication.ensureRuntime()
                 val uin = saved.uin
                 QmceApplication.beginLoginTransition()
-                val result = KernelBridge.bindLoggedInAccount(uin, saved)
+                val result = KernelBridge.bindLoggedInAccount(
+                    uin,
+                    saved,
+                    waitForReady = false,
+                )
                 PerfTrace.mark("WearApp.LaunchedEffect", "bindLoggedInAccount returned result=$result")
                 if (result == "ok" || result == "kernel-not-ready") {
                     withContext(Dispatchers.Main) {
@@ -378,6 +382,16 @@ private fun WearApp() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val postNotificationsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        Log.d("QMCE", "ui: POST_NOTIFICATIONS granted=$granted")
+        if (granted && isLoggedIn) {
+            QmceNotifyLifecycle.onLoggedIn(context)
+        }
+    }
+    var postNotificationsPrompted by remember { mutableStateOf(false) }
+
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
             QmceNotifyLifecycle.onLoggedIn(context)
@@ -385,11 +399,14 @@ private fun WearApp() {
                 ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.POST_NOTIFICATIONS,
-                ) != PackageManager.PERMISSION_GRANTED
+                ) != PackageManager.PERMISSION_GRANTED &&
+                !postNotificationsPrompted
             ) {
-                // Best-effort: user can also grant from notification settings.
+                postNotificationsPrompted = true
+                postNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         } else {
+            postNotificationsPrompted = false
             QmceNotifyLifecycle.onLoggedOut(context)
         }
     }
@@ -1132,8 +1149,17 @@ private fun WearApp() {
                                         if (!coreReady) {
                                             Log.w(
                                                 "QMCE",
-                                                "ui: login enter with kernel not ready uin=$uin",
+                                                "ui: login enter blocked, kernel not ready uin=$uin",
                                             )
+                                            withContext(Dispatchers.Main) {
+                                                QmceApplication.endLoginTransition()
+                                                Toast.makeText(
+                                                    context,
+                                                    "会话未就绪，请重试",
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                            return@withContext
                                         }
                                         withContext(Dispatchers.Main) {
                                             val prefsStillValid =

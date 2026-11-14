@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "QMCE"
+private const val INTERACTIVE_SESSION_WAIT_MS = 20_000L
 
 object KernelBridge {
     enum class CoreServicesPhase { Idle, Starting, Ready, Failed }
@@ -46,6 +47,11 @@ object KernelBridge {
     private var coreInitAttempt = 0
     private val _coreServicesStatus = MutableStateFlow(CoreServicesStatus())
     val coreServicesStatus: StateFlow<CoreServicesStatus> = _coreServicesStatus.asStateFlow()
+    private val _sessionReady = MutableStateFlow(false)
+    val sessionReady: StateFlow<Boolean> = _sessionReady.asStateFlow()
+    private val sessionInitLock = Any()
+    @Volatile
+    private var sessionInitRunning = false
 
     @Volatile
     private var foregroundCallbackRegistered = false
@@ -167,6 +173,7 @@ object KernelBridge {
             lastForcedStartKs = null
             activeCoreInit = null
             _coreServicesStatus.value = CoreServicesStatus(CoreServicesPhase.Idle)
+            publishSessionReady(false)
         }
         return awaitCoreServices(timeoutMillis, runtimeOverride)
     }
@@ -180,6 +187,8 @@ object KernelBridge {
             coreInitAttempt = 0
             _coreServicesStatus.value = CoreServicesStatus(CoreServicesPhase.Idle)
         }
+        publishSessionReady(false)
+        synchronized(sessionInitLock) { sessionInitRunning = false }
         cachedKs = null
         cachedMsgService = null
         cachedRecentService = null
@@ -275,6 +284,18 @@ object KernelBridge {
         elapsedMillis: Long = _coreServicesStatus.value.elapsedMillis,
     ) {
         _coreServicesStatus.value = CoreServicesStatus(phase, reason, attempt, elapsedMillis)
+        if (phase == CoreServicesPhase.Ready) {
+            publishSessionReady(areCoreServicesReady())
+        } else if (phase == CoreServicesPhase.Idle || phase == CoreServicesPhase.Failed) {
+            publishSessionReady(areCoreServicesReady())
+        }
+    }
+
+    private fun publishSessionReady(ready: Boolean) {
+        if (_sessionReady.value != ready) {
+            QmceLog.d(TAG, "KernelBridge: sessionReady=$ready")
+        }
+        _sessionReady.value = ready
     }
 
     fun areCoreServicesReady(): Boolean {
@@ -282,6 +303,8 @@ object KernelBridge {
                 cachedRecentService != null &&
                 cachedBuddyService != null
     }
+
+    fun isSessionReady(): Boolean = _sessionReady.value && areCoreServicesReady()
 
     fun awaitGroupService(
         timeoutMillis: Long = 15_000,
@@ -323,6 +346,7 @@ object KernelBridge {
             "KernelBridge: cached services — ks=$cachedKs, msg=$cachedMsgService, " +
                     "recent=$cachedRecentService, buddy=$cachedBuddyService, state=${kernelState(ks)}"
         )
+        publishSessionReady(areCoreServicesReady())
     }
 
     /**
@@ -435,9 +459,19 @@ object KernelBridge {
     @Volatile
     private var lastForcedStartKs: IKernelService? = null
 
-    fun bindLoggedInAccount(uin: String, account: SimpleAccount): String {
+    /**
+     * @param waitForReady QR / first login: wait on the caller thread (must be IO) up to
+     * [INTERACTIVE_SESSION_WAIT_MS] for a real session. Cold-start restore should pass false
+     * so the UI can open immediately while [sessionReady] catches up on a daemon thread.
+     * Never returns `"ok"` unless [areCoreServicesReady] is true.
+     */
+    fun bindLoggedInAccount(
+        uin: String,
+        account: SimpleAccount,
+        waitForReady: Boolean = false,
+    ): String {
         return runCatching {
-            PerfTrace.mark("KernelBridge.bind", "Start bindLoggedInAccount uin=$uin")
+            PerfTrace.mark("KernelBridge.bind", "Start bindLoggedInAccount uin=$uin waitForReady=$waitForReady")
             val app = MobileQQ.sMobileQQ ?: return "MobileQQ null"
             runCatching { app.setLastLoginUin(uin) }
             runCatching { app.setSortAccountList(arrayListOf(account)) }
@@ -484,24 +518,70 @@ object KernelBridge {
                 }
             }
 
-            // CRITICAL DECOUPLING:
-            // Do NOT block the caller on waitForSession and reinitializeAfterLogin (which take 70+ seconds!).
-            // Instead, run them asynchronously in a background daemon thread so MainActivity can enter MainScreen immediately.
-            Thread({
-                try {
-                    PerfTrace.mark("KernelBackgroundInit", "Thread started: waitForSession")
-                    val sessionOk = waitForSession(ks, actualRuntime)
-                    PerfTrace.mark("KernelBackgroundInit", "waitForSession ended sessionOk=$sessionOk")
-                    reinitializeAfterLogin(actualRuntime)
-                    PerfTrace.mark("KernelBackgroundInit", "reinitializeAfterLogin completed, coreReady=${areCoreServicesReady()}")
-                } catch (t: Throwable) {
-                    QmceLog.e(TAG, "KernelBackgroundInit failed", t)
-                }
-            }, "QMCE-BackgroundKernelInit").apply { isDaemon = true }.start()
+            dispatchSessionInit(ks, actualRuntime)
 
-            PerfTrace.mark("KernelBridge.bind", "Background init dispatched, returning immediately")
-            "ok"
+            if (areCoreServicesReady()) {
+                publishSessionReady(true)
+                PerfTrace.mark("KernelBridge.bind", "already ready, returning ok")
+                return@runCatching "ok"
+            }
+
+            if (!waitForReady) {
+                PerfTrace.mark("KernelBridge.bind", "cold restore dispatched, returning kernel-not-ready")
+                return@runCatching "kernel-not-ready"
+            }
+
+            val ready = awaitSessionReady(INTERACTIVE_SESSION_WAIT_MS)
+            val result = if (ready) "ok" else "kernel-not-ready"
+            PerfTrace.mark("KernelBridge.bind", "interactive wait ended result=$result")
+            result
         }.getOrElse { "failed: ${it.javaClass.simpleName}: ${it.message}" }
+    }
+
+    private fun dispatchSessionInit(ks: IKernelService?, runtime: AppRuntime?) {
+        synchronized(sessionInitLock) {
+            if (sessionInitRunning) {
+                QmceLog.d(TAG, "KernelBridge: session init already running, skip duplicate")
+                return
+            }
+            sessionInitRunning = true
+        }
+        Thread({
+            try {
+                PerfTrace.mark("KernelBackgroundInit", "Thread started: waitForSession")
+                val sessionOk = waitForSession(ks, runtime)
+                PerfTrace.mark("KernelBackgroundInit", "waitForSession ended sessionOk=$sessionOk")
+                reinitializeAfterLogin(runtime)
+                val ready = areCoreServicesReady()
+                publishSessionReady(ready)
+                PerfTrace.mark(
+                    "KernelBackgroundInit",
+                    "reinitializeAfterLogin completed, coreReady=$ready",
+                )
+            } catch (t: Throwable) {
+                publishSessionReady(areCoreServicesReady())
+                QmceLog.e(TAG, "KernelBackgroundInit failed", t)
+            } finally {
+                synchronized(sessionInitLock) { sessionInitRunning = false }
+            }
+        }, "QMCE-BackgroundKernelInit").apply { isDaemon = true }.start()
+    }
+
+    private fun awaitSessionReady(timeoutMillis: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (System.currentTimeMillis() < deadline) {
+            if (areCoreServicesReady()) {
+                publishSessionReady(true)
+                return true
+            }
+            try {
+                Thread.sleep(250)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return areCoreServicesReady()
+            }
+        }
+        return areCoreServicesReady().also { ready -> publishSessionReady(ready) }
     }
 
     fun reinitializeAfterLogin(runtime: AppRuntime?): Boolean {

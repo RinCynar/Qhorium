@@ -1,441 +1,369 @@
 package rj.qmce.lite.data.qzone
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
+import android.os.Build
 import android.util.Log
-import com.tencent.qqnt.account.login.api.ITicketRuntimeService
-import com.tencent.watch.qzone_impl.common.result.IResult
-import com.tencent.watch.qzone_impl.common.result.QZoneResult
-import com.tencent.watch.qzone_impl.event.Event
-import com.tencent.watch.qzone_impl.event.EventCenter
-import com.tencent.watch.qzone_impl.event.EventSource
-import com.tencent.watch.qzone_impl.event.IObserver
-import com.tencent.watch.qzone_impl.feed.BaseResponseWrapper
-import com.tencent.watch.qzone_impl.feed.IFeedManager
-import com.tencent.watch.qzone_impl.feed.QZoneFeedService
-import com.tencent.watch.qzone_impl.feed.ResultWrapper
-import com.tencent.watch.qzone_impl.feed.ServiceCallbackWrapper
-import com.tencent.watch.qzone_impl.feed.TaskWrapper
-import com.tencent.watch.qzone_impl.feed.manage.FeedManager
+import com.qq.jce.wup.UniAttribute
+import com.qq.taf.jce.JceInputStream
+import com.qq.taf.jce.JceOutputStream
+import com.tencent.mobileqq.msf.sdk.MsfSdkUtils
+import com.tencent.qphone.base.BaseConstants
+import com.tencent.qphone.base.remote.FromServiceMsg
+import com.tencent.qphone.base.util.BaseApplication
 import com.tencent.watch.qzone_impl.feed.model.BusinessFeedData
 import com.tencent.watch.qzone_impl.utils.UinUtils
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import mqq.app.AppRuntime
 import mqq.app.MobileQQ
-import mqq.manager.TicketManager
-import oicq.wlogin_sdk.request.Ticket
-import oicq.wlogin_sdk.request.WtTicketPromise
-import oicq.wlogin_sdk.tools.ErrMsg
-import java.lang.ref.WeakReference
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
+import NS_MOBILE_FEEDS.mobile_feeds_req
+import NS_MOBILE_FEEDS.mobile_feeds_rsp
+import NS_MOBILE_FEEDS.single_feed
+import QMF_PROTOCAL.QmfBusiControl
+import QMF_PROTOCAL.QmfClientIpInfo
+import QMF_PROTOCAL.QmfDownstream
+import QMF_PROTOCAL.QmfTokenInfo
+import QMF_PROTOCAL.QmfUpstream
+import rj.qmce.lite.QmceApplication
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.util.TimeZone
+import java.util.zip.Deflater
+import java.util.zip.Inflater
+import kotlin.coroutines.resume
 
 class QZoneFeedRepository {
 
     sealed interface RefreshResult {
         data object Success : RefreshResult
-
         data class Unavailable(val reason: String) : RefreshResult
-
         data object Cancelled : RefreshResult
     }
 
-    private var feedObserver: IObserver? = null
-    private var observedFeedService: QZoneFeedService? = null
-    private var feedService: QZoneFeedService? = null
-    private val lastRequestFailure = AtomicReference<String?>(null)
-    private val lastNetworkSucceeded = AtomicBoolean(false)
-    private var refreshCompletion: CompletableDeferred<Unit>? = null
+    private var lastAttachInfo: String = ""
+    private var hasMore: Boolean = true
+    private val currentFeeds = ArrayList<BusinessFeedData>()
 
     suspend fun refresh(
         isCurrent: () -> Boolean,
         onFeeds: (List<BusinessFeedData>, finishLoading: Boolean) -> Unit,
-    ): RefreshResult {
-        when (val readiness = awaitQZoneReady(isCurrent)) {
-            RefreshResult.Cancelled -> return RefreshResult.Cancelled
-            is RefreshResult.Unavailable -> return readiness
-            RefreshResult.Success -> Unit
-        }
-
-        val service = awaitFeedService(isCurrent)
-            ?: return if (isCurrent()) {
-                RefreshResult.Unavailable("QZoneFeedService 不可用")
-            } else {
-                RefreshResult.Cancelled
-            }
-        feedService = service
-
-        val uin = runCatching { UinUtils.b() }.getOrDefault(0L)
+    ): RefreshResult = withContext(Dispatchers.IO) {
+        val runtime = QmceApplication.ensureRuntime()
+            ?: return@withContext RefreshResult.Unavailable("AppRuntime 不可用")
+        val uin = runtime.longAccountUin.takeIf { it > 0 }
+            ?: runCatching { UinUtils.b() }.getOrDefault(0L)
         if (uin <= 0L) {
-            return RefreshResult.Unavailable("账号未就绪")
+            return@withContext RefreshResult.Unavailable("当前账号 UIN 无效")
         }
-        service.m(uin, uin)
-        runCatching { service.q() }
-        Log.d(TAG, "feed service initialized, uin=$uin")
-        attachRequestCallback(service, uin)
-        registerFeedObserver(service, onFeeds)
+        val context = BaseApplication.getContext() ?: MobileQQ.sMobileQQ
+            ?: return@withContext RefreshResult.Unavailable("Context 不可用")
 
-        val feedManager = service.i ?: return RefreshResult.Unavailable("FeedManager 不可用")
-        lastRequestFailure.set(null)
-        lastNetworkSucceeded.set(false)
-        val cached = feedManager.n()
-        if (!cached.isNullOrEmpty()) {
-            Log.d(TAG, "loaded ${cached.size} cached feeds")
-            onFeeds(cached, false)
+        Log.d(TAG, "refresh: constructing getActiveFeeds packet for uin=$uin (WearQQ Next protocol)")
+        val packet = runCatching {
+            buildGetActiveFeedsPacket(context, uin, isRefresh = true, attachInfo = "")
+        }.getOrElse { error ->
+            Log.e(TAG, "failed to build packet", error)
+            return@withContext RefreshResult.Unavailable("请求封包构造失败: ${error.message}")
         }
 
-        val deferred = CompletableDeferred<Unit>()
-        refreshCompletion = deferred
+        if (!isCurrent()) return@withContext RefreshResult.Cancelled
 
-        requestRefresh(feedManager, force = false)
-        Log.d(TAG, "requested network feed refresh force=false")
-
-        withTimeoutOrNull(6_000L) {
-            deferred.await()
-        }
-        refreshCompletion = null
-
-        if (!isCurrent()) return RefreshResult.Cancelled
-
-        val fresh = feedManager.n()
-        val finalSize = fresh?.size ?: 0
-        Log.d(
-            TAG,
-            "feed refresh settled size=$finalSize " +
-                "networkOk=${lastNetworkSucceeded.get()} failure=${lastRequestFailure.get()}",
-        )
-        if (!fresh.isNullOrEmpty()) {
-            onFeeds(fresh, true)
-            return RefreshResult.Success
+        Log.d(TAG, "refresh: sending SQQzoneSvc.getActiveFeeds (size=${packet.size})")
+        val response = sendPacket(runtime, "SQQzoneSvc.getActiveFeeds", packet, 20_000L)
+        if (!isCurrent()) return@withContext RefreshResult.Cancelled
+        if (response == null) {
+            return@withContext RefreshResult.Unavailable("空间动态加载超时，请重试")
         }
 
-        val failure = lastRequestFailure.get()
-        if (failure != null) {
-            return RefreshResult.Unavailable(failure)
-        }
-        if (!lastNetworkSucceeded.get()) {
-            return RefreshResult.Unavailable("空间动态加载超时，请重试")
-        }
+        val parseResult = parseGetActiveFeedsResponse(response)
+        if (!isCurrent()) return@withContext RefreshResult.Cancelled
 
-        onFeeds(emptyList(), true)
-        return RefreshResult.Success
-    }
-
-    private fun requestRefresh(feedManager: IFeedManager?, force: Boolean) {
-        if (feedManager == null) return
-        val callback = ServiceCallbackWrapper().apply {
-            a = WeakReference(Handler(Looper.getMainLooper()))
-        }
-        feedManager.j(0, callback, force)
-    }
-
-    private fun attachRequestCallback(service: QZoneFeedService, uin: Long) {
-        val previousListener = service.j ?: (service.i as? IFeedManager.RequestCallbackListener)
-        service.j = object : IFeedManager.RequestCallbackListener {
-            override fun k(
-                task: TaskWrapper?,
-                result: ResultWrapper?,
-                response: BaseResponseWrapper?,
-                code: Int,
-            ) {
-                runCatching { previousListener?.k(task, result, response, code) }
-                val respCode = runCatching { response?.a() }.getOrNull()
-                val respMsg = runCatching { response?.c() }.getOrNull().orEmpty()
-                Log.d(
-                    TAG,
-                    "feed callback k code=$code respCode=$respCode msg=$respMsg " +
-                        "size=${runCatching { response?.b()?.size }.getOrNull()}",
-                )
-
-                if (code != 0) {
-                    lastRequestFailure.set(
-                        if (respMsg.isNotBlank()) "空间请求失败：$respMsg (code=$code)" else "空间请求失败 code=$code",
-                    )
-                } else if (respCode != null && respCode != 0) {
-                    lastRequestFailure.set(
-                        if (respMsg.isNotBlank()) "空间请求失败：$respMsg (ret=$respCode)" else "空间请求失败 ret=$respCode",
-                    )
-                } else {
-                    lastRequestFailure.set(null)
-                    lastNetworkSucceeded.set(true)
-                }
-                refreshCompletion?.complete(Unit)
-            }
-
-            override fun o(task: TaskWrapper?, result: ResultWrapper?) {
-                runCatching { previousListener?.o(task, result) }
-                val qzResult = result?.b as? QZoneResult
-                val reason = qzResult?.message.orEmpty()
-                val code = qzResult?.returnCode ?: 0
-                Log.d(TAG, "feed callback o code=$code reason=$reason")
-                if (code != 0 || reason.isNotBlank()) {
-                    lastRequestFailure.set(if (reason.isNotBlank()) reason else "空间请求失败 code=$code")
-                }
-                refreshCompletion?.complete(Unit)
-            }
-        }
-    }
-
-    private suspend fun awaitQZoneReady(isCurrent: () -> Boolean): RefreshResult {
-        repeat(READY_POLL_COUNT) {
-            if (!isCurrent()) return RefreshResult.Cancelled
-            val runtime = runCatching { MobileQQ.sMobileQQ?.peekAppRuntime() }.getOrNull()
-            val uin = runCatching { UinUtils.b() }.getOrDefault(0L)
-            val a2 = runCatching { UinUtils.a() }.getOrNull()
-            if (runtime != null && uin > 0L && a2 != null && a2.isNotEmpty()) {
-                Log.d(TAG, "qzone ready: uin=$uin, a2Bytes=${a2.size}, ensuring pskey...")
-                ensureQZonePskey(uin)
-                return RefreshResult.Success
-            }
-            delay(READY_POLL_INTERVAL_MILLIS)
-        }
-        val runtime = runCatching { MobileQQ.sMobileQQ?.peekAppRuntime() }.getOrNull()
-        val uin = runCatching { UinUtils.b() }.getOrDefault(0L)
-        val a2 = runCatching { UinUtils.a() }.getOrNull()
-        return when {
-            runtime == null -> RefreshResult.Unavailable("Runtime 未就绪")
-            uin <= 0L -> RefreshResult.Unavailable("账号未就绪")
-            a2 == null || a2.isEmpty() -> RefreshResult.Unavailable("A2 票据未就绪")
-            else -> {
-                ensureQZonePskey(uin)
+        when (parseResult) {
+            is ParseResult.Success -> {
+                lastAttachInfo = parseResult.attachInfo
+                hasMore = parseResult.hasMore
+                currentFeeds.clear()
+                currentFeeds.addAll(parseResult.feeds)
+                Log.d(TAG, "refresh: success parsed ${parseResult.feeds.size} feeds, hasMore=$hasMore")
+                onFeeds(parseResult.feeds, true)
                 RefreshResult.Success
             }
-        }
-    }
-
-    private suspend fun ensureQZonePskey(uin: Long): Boolean {
-        val uinStr = uin.toString()
-        val runtime = runCatching { MobileQQ.sMobileQQ?.peekAppRuntime() }.getOrNull()
-        val ticketManager = runtime?.getManager(mqq.app.AppRuntime.TICKET_MANAGER) as? TicketManager
-
-        val localPskey = runCatching { ticketManager?.getPskey(uinStr, "qzone.qq.com") }.getOrNull()
-        if (!localPskey.isNullOrBlank()) {
-            Log.d(TAG, "qzone pskey already available locally (len=${localPskey.length})")
-            return true
-        }
-
-        val ticketSvc = runCatching {
-            runtime?.getRuntimeService(ITicketRuntimeService::class.java, "")
-        }.getOrNull()
-        val svcLocalPskey = runCatching { ticketSvc?.getLocalPskey(uinStr, "qzone.qq.com") }.getOrNull()
-        if (!svcLocalPskey.isNullOrBlank()) {
-            Log.d(TAG, "qzone pskey already available via ticketSvc (len=${svcLocalPskey.length})")
-            return true
-        }
-
-        Log.d(TAG, "requesting qzone pskey from WTLogin for uin=$uinStr")
-        val acquired = withTimeoutOrNull(8_000L) {
-            val deferred = CompletableDeferred<Boolean>()
-            try {
-                val reqResult = ticketManager?.getPskey(
-                    uinStr,
-                    16L,
-                    arrayOf("qzone.qq.com", "qzone.com"),
-                    object : WtTicketPromise {
-                        override fun Done(ticket: Ticket?) {
-                            val k = ticket?.getPSkey("qzone.qq.com")
-                            val success = !k.isNullOrBlank()
-                            Log.d(TAG, "WTLogin Done: qzone pskey acquired=$success")
-                            deferred.complete(success)
-                        }
-
-                        override fun Failed(err: ErrMsg?) {
-                            Log.w(TAG, "WTLogin Failed: qzone pskey failed: ${err?.message}")
-                            deferred.complete(false)
-                        }
-
-                        override fun Timeout(err: ErrMsg?) {
-                            Log.w(TAG, "WTLogin Timeout: qzone pskey timeout: ${err?.message}")
-                            deferred.complete(false)
-                        }
-                    },
-                )
-                if (reqResult == null && ticketSvc != null) {
-                    ticketSvc.getPskey(
-                        uinStr,
-                        16L,
-                        arrayOf("qzone.qq.com", "qzone.com"),
-                        object : WtTicketPromise {
-                            override fun Done(ticket: Ticket?) {
-                                val k = ticket?.getPSkey("qzone.qq.com")
-                                val success = !k.isNullOrBlank()
-                                Log.d(TAG, "ticketSvc Done: qzone pskey acquired=$success")
-                                deferred.complete(success)
-                            }
-
-                            override fun Failed(err: ErrMsg?) {
-                                Log.w(TAG, "ticketSvc Failed: qzone pskey failed: ${err?.message}")
-                                deferred.complete(false)
-                            }
-
-                            override fun Timeout(err: ErrMsg?) {
-                                Log.w(TAG, "ticketSvc Timeout: qzone pskey timeout: ${err?.message}")
-                                deferred.complete(false)
-                            }
-                        },
-                    )
-                }
-                deferred.await()
-            } catch (e: Throwable) {
-                Log.w(TAG, "error requesting qzone pskey", e)
-                false
+            is ParseResult.Failure -> {
+                Log.w(TAG, "refresh error from server: ${parseResult.reason}")
+                RefreshResult.Unavailable(parseResult.reason)
             }
-        } ?: false
-
-        return acquired || !ticketManager?.getPskey(uinStr, "qzone.qq.com").isNullOrBlank()
-    }
-
-    private suspend fun awaitFeedService(isCurrent: () -> Boolean): QZoneFeedService? {
-        ensureFeedService()?.let { return it }
-        repeat(16) {
-            if (!isCurrent()) return null
-            ensureFeedService()?.let { return it }
-            delay(250)
         }
-        return ensureFeedService() ?: run {
-            Log.w(TAG, "QZoneFeedService still unavailable after wait")
-            null
-        }
-    }
-
-    private fun ensureFeedService(): QZoneFeedService? {
-        QZoneFeedService.h()?.let { return it }
-        feedService?.let { return it }
-        val created = runCatching {
-            val clazz = QZoneFeedService::class.java
-            clazz.declaredConstructors
-                .firstOrNull { it.parameterCount == 0 }
-                ?.let { constructor ->
-                    constructor.isAccessible = true
-                    constructor.newInstance() as? QZoneFeedService
-                }
-        }.onFailure { error ->
-            Log.w(TAG, "failed to construct QZoneFeedService", error)
-        }.getOrNull()
-        if (created != null) {
-            feedService = created
-            Log.d(TAG, "constructed local QZoneFeedService instance")
-        }
-        return QZoneFeedService.h() ?: created
     }
 
     suspend fun loadMore(
         previousSize: Int,
         onFeeds: (List<BusinessFeedData>, finishLoading: Boolean) -> Unit,
-    ): Int? {
-        val service = feedService ?: return null
-        service.n(Handler(Looper.getMainLooper()))
+    ): Int? = withContext(Dispatchers.IO) {
+        if (!hasMore || lastAttachInfo.isBlank()) {
+            Log.d(TAG, "loadMore: no more data or empty attachInfo")
+            return@withContext currentFeeds.size
+        }
+        val runtime = QmceApplication.ensureRuntime() ?: return@withContext null
+        val uin = runtime.longAccountUin.takeIf { it > 0 }
+            ?: runCatching { UinUtils.b() }.getOrDefault(0L)
+        if (uin <= 0L) return@withContext null
+        val context = BaseApplication.getContext() ?: MobileQQ.sMobileQQ ?: return@withContext null
 
-        var fresh: List<BusinessFeedData>? = null
-        var lastFingerprint = feedFingerprint(service.i?.n().orEmpty())
-        repeat(POLL_COUNT) {
-            delay(POLL_INTERVAL_MILLIS)
-            val candidate = service.i?.n()
-            if (!candidate.isNullOrEmpty()) {
-                fresh = candidate
-                val fingerprint = feedFingerprint(candidate)
-                if (fingerprint != lastFingerprint || candidate.size > previousSize) {
-                    onFeeds(candidate, true)
-                    lastFingerprint = fingerprint
-                    if (candidate.size > previousSize) return candidate.size
+        Log.d(TAG, "loadMore: request next page with attachInfo='$lastAttachInfo'")
+        val packet = runCatching {
+            buildGetActiveFeedsPacket(context, uin, isRefresh = false, attachInfo = lastAttachInfo)
+        }.getOrNull() ?: return@withContext null
+
+        val response = sendPacket(runtime, "SQQzoneSvc.getActiveFeeds", packet, 15_000L)
+            ?: return@withContext null
+
+        when (val parseResult = parseGetActiveFeedsResponse(response)) {
+            is ParseResult.Success -> {
+                lastAttachInfo = parseResult.attachInfo
+                hasMore = parseResult.hasMore
+                val existingIds = currentFeeds.mapNotNull { it.cellIdInfo?.cellId }.toSet()
+                val newFeeds = parseResult.feeds.filter { feed ->
+                    val id = feed.cellIdInfo?.cellId
+                    id.isNullOrBlank() || id !in existingIds
                 }
+                currentFeeds.addAll(newFeeds)
+                Log.d(TAG, "loadMore: appended ${newFeeds.size} new feeds, total=${currentFeeds.size}")
+                onFeeds(currentFeeds.toList(), true)
+                currentFeeds.size
+            }
+            is ParseResult.Failure -> {
+                Log.w(TAG, "loadMore error: ${parseResult.reason}")
+                null
             }
         }
-        return fresh?.size ?: 0
     }
 
     fun close() {
-        feedObserver?.let { observer ->
-            runCatching { EventCenter.b().g(observer) }
-        }
-        feedObserver = null
-        observedFeedService = null
-        feedService?.j = null
-        feedService = null
-        lastRequestFailure.set(null)
+        currentFeeds.clear()
+        lastAttachInfo = ""
+        hasMore = true
     }
 
-    private fun registerFeedObserver(
-        service: QZoneFeedService,
-        onFeeds: (List<BusinessFeedData>, finishLoading: Boolean) -> Unit,
-    ) {
-        if (feedObserver != null && observedFeedService === service) return
-        runCatching {
-            feedObserver?.let { observer ->
-                runCatching { EventCenter.b().g(observer) }
-            }
-            val observer = object : IObserver.main {
-                override fun n(event: Event) {
-                    Log.d(TAG, "feed event: type=${event.a}")
-                    if (event.a == FEED_EVENT_FAILED) {
-                        Log.d(TAG, "feed event failed (777) received")
-                        if (lastRequestFailure.get() == null) {
-                            lastRequestFailure.set("空间请求失败，请稍后重试")
-                        }
-                        lastNetworkSucceeded.set(false)
-                        refreshCompletion?.complete(Unit)
-                        return
-                    }
-                    if (event.a != FEED_EVENT_UPDATED && event.a != FEED_EVENT_REFRESHED) return
-                    lastNetworkSucceeded.set(true)
-                    lastRequestFailure.set(null)
-                    val feedsFromEvent = runCatching {
-                        (event.c as? Array<*>)?.getOrNull(0) as? List<BusinessFeedData>
-                    }.getOrNull()
-                    val feeds = feedsFromEvent ?: service.i?.n()
-                    Log.d(TAG, "feed event type=${event.a} size=${feeds?.size ?: 0}")
-                    if (!feeds.isNullOrEmpty()) onFeeds(feeds, true)
-                    refreshCompletion?.complete(Unit)
+    private suspend fun sendPacket(
+        runtime: AppRuntime,
+        ssoCmd: String,
+        data: ByteArray,
+        timeoutMs: Long,
+    ): FromServiceMsg? = withTimeoutOrNull(timeoutMs) {
+        suspendCancellableCoroutine { cont ->
+            val context = BaseApplication.getContext() ?: MobileQQ.sMobileQQ
+            val intent = QzoneFeedIntent(context, ssoCmd, data) { fromServiceMsg ->
+                if (cont.isActive) {
+                    cont.resume(fromServiceMsg)
                 }
             }
-            feedObserver = observer
-            observedFeedService = service
-            EventCenter.b()
-                .a(observer, 0, EventSource("Feed", null), FEED_EVENT_UPDATED, FEED_EVENT_REFRESHED, FEED_EVENT_FAILED)
-            Log.d(TAG, "registered feed observer")
-        }.onFailure { error ->
-            Log.e(TAG, "failed to register feed observer", error)
+            runtime.startServlet(intent)
         }
     }
 
-    private fun feedFingerprint(list: List<BusinessFeedData>): String =
-        list.joinToString("|") { data ->
-            val id = runCatching { data.cellIdInfo?.cellId }.getOrNull().orEmpty()
-            val time = runCatching { data.cellFeedCommInfo?.time }.getOrNull() ?: 0L
-            val summary = runCatching { data.getCellSummaryV2()?.summary }.getOrNull().orEmpty()
-            val title = runCatching { data.cellTitleInfo?.title }.getOrNull().orEmpty()
-            val nick = runCatching { data.cellUserInfo?.user?.nickName }.getOrNull().orEmpty()
-            val likes = runCatching { data.cellLikeInfo?.likeNum }.getOrNull() ?: 0
-            val comments = runCatching {
-                data.cellCommentInfo?.c.orEmpty().joinToString(",") { comment ->
-                    "${comment.commentid}:${comment.user?.uin}:${comment.comment}:${comment.replies?.size ?: 0}"
-                }
-            }.getOrNull().orEmpty()
-            val pictures = runCatching {
-                data.cellPictureInfo?.pics.orEmpty().joinToString(",") {
-                    it.currentUrl?.url ?: it.bigUrl?.url ?: it.originUrl?.url.orEmpty()
-                }
-            }.getOrNull().orEmpty()
-            val video = runCatching { data.cellVideoInfo?.videoUrl?.url }.getOrNull().orEmpty()
-            val original = runCatching {
-                data.originalInfo?.let { originalData ->
-                    "${originalData.cellUserInfo?.user?.nickName}:${originalData.getCellSummaryV2()?.summary}:${originalData.cellTitleInfo?.title}"
-                }
-            }.getOrNull().orEmpty()
-            "$id:$time:$nick:$summary:$title:$likes:$comments:$pictures:$video:$original"
-        }
-
-    private companion object {
+    companion object {
         private const val TAG = "QMCE-QZoneFeed"
-        private const val FEED_EVENT_UPDATED = 1
-        private const val FEED_EVENT_REFRESHED = 4
-        private const val FEED_EVENT_FAILED = 777
-        private const val POLL_COUNT = 24
-        private const val POLL_INTERVAL_MILLIS = 500L
-        private const val FORCE_REFRESH_AFTER_ROUND = 6
-        private const val READY_POLL_COUNT = 20
-        private const val READY_POLL_INTERVAL_MILLIS = 250L
+        private const val QUA = "V1_WAT_SQ_2.0.1_001_IDC_B"
+        private const val APP_ID = 1000027
+
+        fun buildGetActiveFeedsPacket(
+            context: Context,
+            uin: Long,
+            isRefresh: Boolean,
+            attachInfo: String = "",
+        ): ByteArray {
+            val displayMetrics = context.resources.displayMetrics
+            val req = mobile_feeds_req().apply {
+                i = if (isRefresh) 1 else 2
+                j = 3
+                k = 10
+                l = attachInfo
+                m = "screen_width=${displayMetrics.widthPixels}&screen_height=${displayMetrics.heightPixels}"
+                n = hashMapOf(
+                    19 to "0",
+                    29 to "1",
+                    42 to "0",
+                    99 to "",
+                    133 to "0",
+                    145 to "1",
+                )
+                t = hashMapOf("HasGetSecretFeeds" to "0")
+            }
+
+            val uniAttribute = UniAttribute().apply {
+                setEncodeName("utf-8")
+                put("hostuin", uin)
+                put("getActiveFeeds", req)
+            }
+            val encodedBusi = uniAttribute.encode()
+
+            // Deflater compression
+            val deflater = Deflater()
+            deflater.setInput(encodedBusi)
+            deflater.finish()
+            val baos = ByteArrayOutputStream(encodedBusi.size)
+            val buffer = ByteArray(1024)
+            while (!deflater.finished()) {
+                val count = deflater.deflate(buffer)
+                baos.write(buffer, 0, count)
+            }
+            val deflatedBytes = baos.toByteArray()
+            deflater.end()
+
+            // busiCompCtl
+            val ctlAttr = UniAttribute().apply {
+                setEncodeName("utf-8")
+                val busiControl = QmfBusiControl().apply {
+                    b = 1
+                    c = encodedBusi.size.toLong()
+                    d = 1
+                }
+                put("busiCompCtl", busiControl)
+            }
+            val ctlBytes = ctlAttr.encode()
+
+            val nextAppSeq = MsfSdkUtils.getNextAppSeq()
+            val rawOffset = TimeZone.getDefault().rawOffset / 3600000
+            val tzOffset = if (rawOffset > 0) "+$rawOffset" else "$rawOffset"
+            val tzId = TimeZone.getDefault().id
+            val deviceInfo = "i=null&imsi=&mac=null&m=${Build.MODEL}&o=${Build.VERSION.RELEASE}&a=${Build.VERSION.SDK_INT}&sc=1&sd=0&p=${displayMetrics.widthPixels}*${displayMetrics.heightPixels}&f=${Build.MANUFACTURER}&mm=1024&cf=0&cc=4&sharpP=0&qadid=&n=wan&longitude=&latitude=&coordtype=0&timezone=$tzOffset,id:$tzId"
+
+            val tokenInfo = QmfTokenInfo(64, ByteArray(0), hashMapOf(1 to byteArrayOf(0)))
+            val clientIp = QmfClientIpInfo(0.toByte(), 0.toShort(), 0, ByteArray(6))
+
+            val qmfUpstream = QmfUpstream(
+                nextAppSeq,
+                APP_ID,
+                uin,
+                QUA,
+                "QzoneNewService.getActiveFeeds",
+                deviceInfo,
+                tokenInfo,
+                clientIp,
+                deflatedBytes,
+                ctlBytes,
+                0L,
+                0L,
+                null,
+            )
+
+            val jceOutputStream = JceOutputStream().apply {
+                setServerEncoding("UTF-8")
+            }
+            qmfUpstream.writeTo(jceOutputStream)
+            val upstreamBytes = jceOutputStream.toByteArray()
+
+            val out = ByteArrayOutputStream(upstreamBytes.size + 4)
+            val dos = DataOutputStream(out)
+            dos.writeInt(upstreamBytes.size + 4)
+            dos.write(upstreamBytes)
+            dos.flush()
+            return out.toByteArray()
+        }
+
+        sealed interface ParseResult {
+            data class Success(
+                val feeds: List<BusinessFeedData>,
+                val attachInfo: String,
+                val hasMore: Boolean,
+            ) : ParseResult
+
+            data class Failure(val reason: String) : ParseResult
+        }
+
+        fun parseGetActiveFeedsResponse(response: FromServiceMsg): ParseResult {
+            if (!response.isSuccess) {
+                val code = response.resultCode
+                val msg = response.businessFailMsg.orEmpty()
+                return ParseResult.Failure("MSF 通信失败 ($code): $msg")
+            }
+
+            val wupBuffer = response.wupBuffer ?: return ParseResult.Failure("响应数据为空 (wupBuffer is null)")
+            val dis = DataInputStream(ByteArrayInputStream(wupBuffer))
+            val totalLen = dis.readInt()
+            val bodyLen = totalLen - 4
+            if (bodyLen <= 0 || bodyLen > wupBuffer.size - 4) {
+                return ParseResult.Failure("QZone 响应包长度异常: $totalLen / ${wupBuffer.size}")
+            }
+            val bodyBytes = ByteArray(bodyLen)
+            dis.readFully(bodyBytes)
+
+            val qmfDownstream = QmfDownstream()
+            qmfDownstream.readFrom(JceInputStream(bodyBytes))
+
+            if (qmfDownstream.f != 0.toShort()) {
+                return ParseResult.Failure("QZone WNS 返回码: ${qmfDownstream.f}")
+            }
+
+            val isCompressed = if (qmfDownstream.k != null && qmfDownstream.k.isNotEmpty()) {
+                val ctlAttr = UniAttribute().apply {
+                    setEncodeName("utf-8")
+                    decode(qmfDownstream.k)
+                }
+                val ctl = runCatching { ctlAttr.get<QmfBusiControl?>("busiCompCtl") }.getOrNull()
+                ctl?.b == 1
+            } else false
+
+            val payloadBytes = if (isCompressed && qmfDownstream.j != null && qmfDownstream.j.isNotEmpty()) {
+                val inflater = Inflater()
+                inflater.setInput(qmfDownstream.j)
+                val baos = ByteArrayOutputStream(qmfDownstream.j.size * 2)
+                val buf = ByteArray(1024)
+                while (!inflater.finished()) {
+                    val count = inflater.inflate(buf)
+                    if (count == 0) {
+                        if (inflater.needsInput() || inflater.needsDictionary()) break
+                    } else {
+                        baos.write(buf, 0, count)
+                    }
+                }
+                inflater.end()
+                baos.toByteArray()
+            } else {
+                qmfDownstream.j ?: ByteArray(0)
+            }
+
+            val rspAttr = UniAttribute().apply {
+                setEncodeName("utf-8")
+                decode(payloadBytes)
+            }
+
+            val retNumber = runCatching { rspAttr.get<Number?>(BaseConstants.ATTR_KET_RET) }.getOrNull()
+                ?: runCatching { rspAttr.get<Number?>("ret") }.getOrNull()
+            val ret = retNumber?.toInt() ?: qmfDownstream.h.toInt()
+            if (ret != 0) {
+                val msg = runCatching { rspAttr.get<String?>("msg") }.getOrNull().orEmpty()
+                return ParseResult.Failure("QZone 业务返回错误: ret=$ret msg=$msg")
+            }
+
+            val feedsRsp = runCatching {
+                rspAttr.get<mobile_feeds_rsp?>("getActiveFeeds")
+                    ?: rspAttr.getJceStruct("getActiveFeeds", mobile_feeds_rsp())
+            }.getOrNull() ?: return ParseResult.Failure("未解析到 mobile_feeds_rsp 结构体")
+
+            val rawFeeds = feedsRsp.k ?: arrayListOf()
+            val attachInfo = feedsRsp.j.orEmpty()
+            val hasMore = feedsRsp.i != 0
+
+            val feedDataList = rawFeeds.mapNotNull { singleFeed ->
+                runCatching {
+                    val data = BusinessFeedData.createFrom(singleFeed, 0)
+                        ?: BusinessFeedData.createFrom(singleFeed.e, singleFeed.j, singleFeed.h)
+                    if (data != null) {
+                        data.attachInfo = attachInfo
+                        if (data.feedInfo.isNullOrBlank()) {
+                            data.feedInfo = singleFeed.j?.takeIf { it.isNotBlank() } ?: singleFeed.h.orEmpty()
+                        }
+                    }
+                    data
+                }.getOrNull()
+            }
+
+            return ParseResult.Success(feedDataList, attachInfo, hasMore)
+        }
     }
 }

@@ -243,6 +243,14 @@ class AuthViewModel : ViewModel() {
         val pending = pendingLoginResult
         if (pending != null) {
             viewModelScope.launch {
+                if (!KernelBridge.areCoreServicesReady()) {
+                    setState(
+                        LoginUiState.Error("会话未就绪，请重试"),
+                        "会话未就绪，请重试",
+                        busy = false,
+                    )
+                    return@launch
+                }
                 setState(LoginUiState.Binding, "正在进入…", busy = true)
                 _loginResult.emit(pending)
                 pendingLoginResult = null
@@ -663,26 +671,27 @@ class AuthViewModel : ViewModel() {
                             }
                             val bindResult = withContext(Dispatchers.IO) {
                                 LoginPrefs.saveAccount(BaseApplication.getContext(), account)
-                                KernelBridge.bindLoggedInAccount(cleanAccount, account)
+                                KernelBridge.bindLoggedInAccount(
+                                    cleanAccount,
+                                    account,
+                                    waitForReady = true,
+                                )
                             }
-                            appendLog("bind result=$bindResult")
-                            if (bindResult != "ok" && bindResult != "kernel-not-ready") {
+                            appendLog("bind result=$bindResult sessionReady=${KernelBridge.isSessionReady()}")
+                            if (bindResult != "ok" || !KernelBridge.areCoreServicesReady()) {
+                                val reason = if (bindResult == "kernel-not-ready" ||
+                                    bindResult == "ok"
+                                ) {
+                                    "会话未就绪，请重试"
+                                } else {
+                                    "会话绑定失败"
+                                }
                                 failRequest(
                                     generation,
-                                    "会话绑定失败",
+                                    reason,
                                     detail = "bindLoggedInAccount=$bindResult",
                                 )
                                 return@launch
-                            }
-                            if (bindResult == "kernel-not-ready" ||
-                                !KernelBridge.areCoreServicesReady()
-                            ) {
-                                withContext(Dispatchers.IO) {
-                                    val ready = KernelBridge.retryCoreServices(
-                                        timeoutMillis = 20_000,
-                                    )
-                                    appendLog("core services after bind ready=$ready")
-                                }
                             }
                             runCatching { QmceNotifyLifecycle.reinforceMsf() }
                                 .onFailure { QmceLog.w(TAG, "auth: early reinforceMsf failed", it) }

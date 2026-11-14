@@ -16,6 +16,7 @@
 -keep class NS_MOBILE_FEEDS.** { *; }
 -keep class NS_MOBILE_COMM.** { *; }
 -keep class NS_MOBILE_OPERATION.** { *; }
+-keep class QMF_PROTOCAL.** { *; }
 
 # Kotlin stdlib
 -keep class kotlin.** { *; }
@@ -41,6 +42,7 @@
 -keep class com.tencent.qqnt.watch.app.WatchApplicationDelegate$* { *; }
 -keep class rj.qmce.lite.viewmodel.GroupManagementViewModel { *; }
 -keep class androidx.core.app.CoreComponentFactory { *; }
+-keep class rj.qmce.lite.data.qzone.** { *; }
 
 
 # Keep lazy call

@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import rj.qmce.lite.copy.UiCopy
 import rj.qmce.lite.notify.QmceNotificationChannels
 import rj.qmce.lite.ui.MainActivity
 import rj.qmce.lite.viewmodel.SettingsViewModel
@@ -27,8 +28,8 @@ class QmceKeepAliveService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification: Notification = NotificationCompat.Builder(this, QmceNotificationChannels.KEEPALIVE)
-            .setContentTitle("QMCE 运行中")
-            .setContentText("保持消息连接")
+            .setContentTitle(UiCopy.keepAliveTitle())
+            .setContentText(UiCopy.keepAliveText())
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
             .setContentIntent(launch)
             .setOngoing(true)
