@@ -51,15 +51,19 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 import coil3.compose.AsyncImage
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
+import rj.qmce.lite.ui.components.AvatarUtils
+import rj.qmce.lite.ui.components.NetworkErrorBannerCard
 import rj.qmce.lite.viewmodel.QZoneViewModel
 import rj.qmce.lite.util.TimeUtils
 
 @Composable
 fun QZoneScreen(
     vm: QZoneViewModel,
+    uin: String = "",
     onOpenComposer: () -> Unit,
     onOpenDetail: (QZoneViewModel.FeedItem) -> Unit,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val feeds by vm.feeds.collectAsState()
     val statusText by vm.statusText.collectAsState()
     val loading by vm.loading.collectAsState()
@@ -72,6 +76,12 @@ fun QZoneScreen(
     val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
     val isFeedError = feedError != null
+
+    LaunchedEffect(uin) {
+        if (uin.isNotBlank()) {
+            vm.attachAccount(context, uin)
+        }
+    }
 
     LaunchedEffect(listState.canScrollForward, feeds.isNotEmpty(), loading, isLoadingMore) {
         if (!listState.canScrollForward && feeds.isNotEmpty() && !loading && !isLoadingMore && vm.hasMoreData()) {
@@ -113,16 +123,15 @@ fun QZoneScreen(
                     }
                 }
             }
-            if (statusText.isNotEmpty() && statusText != "暂无动态") {
-                item(key = "qzone-status") {
-                    QZoneListNotice(
-                        statusText,
-                        if (isFeedError) scheme.error else scheme.outline,
-                        transformationSpec,
+            if (feeds.isNotEmpty() && isFeedError) {
+                item(key = "qzone-error-banner") {
+                    NetworkErrorBannerCard(
+                        message = feedError ?: statusText.ifBlank { "刷新失败，点击重试" },
+                        onRetry = { vm.loadFeeds(forceRefresh = true) },
+                        modifier = Modifier.transformedHeight(this, transformationSpec),
                     )
                 }
-            }
-            if (isFeedError || (feeds.isEmpty() && !loading && statusText == "暂无动态")) {
+            } else if (feeds.isEmpty() && isFeedError) {
                 item(key = "qzone-retry-feed") {
                     Row(
                         modifier = Modifier
@@ -139,6 +148,33 @@ fun QZoneScreen(
                             Text(if (loading) "重试中…" else "重试")
                         }
                     }
+                }
+            } else if (feeds.isEmpty() && !loading && statusText == "暂无动态") {
+                item(key = "qzone-retry-feed") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .transformedHeight(this, transformationSpec)
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Button(
+                            onClick = { vm.loadFeeds(forceRefresh = true) },
+                            enabled = !loading,
+                            transformation = SurfaceTransformation(transformationSpec),
+                        ) {
+                            Text(if (loading) "重试中…" else "重试")
+                        }
+                    }
+                }
+            }
+            if (!isFeedError && statusText.isNotEmpty() && statusText != "暂无动态") {
+                item(key = "qzone-status") {
+                    QZoneListNotice(
+                        statusText,
+                        scheme.outline,
+                        transformationSpec,
+                    )
                 }
             }
             if (operationStatus.isNotEmpty()) {
@@ -297,6 +333,7 @@ private fun FeedPreviewCard(
     modifier: Modifier,
     transformation: SurfaceTransformation,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scheme = MaterialTheme.colorScheme
     val timeText = remember(
         feed.displayTime,
@@ -317,7 +354,7 @@ private fun FeedPreviewCard(
                 contentAlignment = Alignment.Center,
             ) {
                 AsyncImage(
-                    model = avatarUrl,
+                    model = AvatarUtils.buildAvatarImageRequest(context, avatarUrl),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -350,7 +387,7 @@ private fun FeedPreviewCard(
                                 .background(scheme.surfaceContainerHigh)
                         ) {
                             AsyncImage(
-                                model = url,
+                                model = AvatarUtils.buildFeedImageRequest(context, url),
                                 contentDescription = "动态图片",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop,

@@ -2,6 +2,7 @@ package rj.qmce.lite.ui.screens
 
 import androidx.activity.compose.BackHandler
 import rj.qmce.lite.ui.components.AvatarUtils
+import rj.qmce.lite.ui.components.NetworkErrorBannerCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,11 +70,13 @@ import java.util.Locale
 @Composable
 fun ContactsScreen(
     vm: ContactsViewModel,
+    uin: String = "",
     onOpenChat: (String, String, String) -> Unit, // uid, uin, name
     onOpenGroup: (ContactsViewModel.UiGroup) -> Unit,
     onOpenProfile: (ContactsViewModel.UiBuddy) -> Unit,
     onRetryKernel: () -> Unit,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val categories by vm.categories.collectAsState()
     val groups by vm.groups.collectAsState()
     val statusText by vm.statusText.collectAsState()
@@ -102,6 +105,12 @@ fun ContactsScreen(
 
     LaunchedEffect(settings.contactsSortMode) {
         vm.setSortMode(settings.contactsSortMode)
+    }
+
+    LaunchedEffect(uin) {
+        if (uin.isNotBlank()) {
+            vm.attachAccount(context, uin)
+        }
     }
 
     if (showSortPicker) {
@@ -179,6 +188,15 @@ fun ContactsScreen(
                                         )
                                     },
                                     label = { Text("回顶") },
+                                )
+                            }
+                        }
+                        if (statusText.isNotBlank() && (statusText.contains("失败") || statusText.contains("不可用") || statusText.contains("错误") || statusText.contains("内核"))) {
+                            item(key = "contacts-error-banner") {
+                                NetworkErrorBannerCard(
+                                    message = statusText,
+                                    onRetry = onRetryKernel,
+                                    modifier = Modifier.transformedHeight(this, transformationSpec),
                                 )
                             }
                         }

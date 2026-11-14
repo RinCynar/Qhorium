@@ -40,11 +40,28 @@ object AvatarUtils {
 
     /**
      * Builds standard optimized Coil ImageRequest for Wear OS avatars:
+     * limits decoding size to 96x96 to save RAM on low-tier Wear devices,
      * enables memory and disk cache, disables crossfade to save GPU layers on Wear.
      */
     fun buildAvatarImageRequest(context: Context, model: Any): ImageRequest {
         return ImageRequest.Builder(context)
             .data(model)
+            .size(96, 96)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
+            .networkCachePolicy(CachePolicy.ENABLED)
+            .crossfade(false)
+            .build()
+    }
+
+    /**
+     * Builds standard optimized Coil ImageRequest for Wear OS feeds/dynamic images:
+     * strictly limits decoding resolution to 360x360 to avoid OOM from full 4K phone photos.
+     */
+    fun buildFeedImageRequest(context: Context, model: Any): ImageRequest {
+        return ImageRequest.Builder(context)
+            .data(model)
+            .size(360, 360)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .networkCachePolicy(CachePolicy.ENABLED)

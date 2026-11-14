@@ -114,6 +114,19 @@ class QmceApplication : WatchApplicationDelegate(), SingletonImageLoader.Factory
             .build()
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        runCatching {
+            SingletonImageLoader.get(this).memoryCache?.let { cache ->
+                if (level >= TRIM_MEMORY_BACKGROUND) {
+                    cache.clear()
+                } else if (level >= TRIM_MEMORY_RUNNING_LOW) {
+                    cache.trimToSize(cache.size / 2)
+                }
+            }
+        }
+    }
+
     companion object {
         var sAppRuntime: AppRuntime? = null
         private val _logoutReason = MutableStateFlow<Constants.LogoutReason?>(null)

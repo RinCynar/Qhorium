@@ -58,6 +58,7 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 import coil3.compose.AsyncImage
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
+import rj.qmce.lite.ui.components.AvatarUtils
 import rj.qmce.lite.ui.theme.LocalQmceAdaptive
 import rj.qmce.lite.viewmodel.QZoneViewModel
 
@@ -146,7 +147,7 @@ fun QZoneFeedDetailScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         AsyncImage(
-                            model = vm.avatarUrl(feed.uin),
+                            model = AvatarUtils.buildAvatarImageRequest(context, vm.avatarUrl(feed.uin)),
                             contentDescription = "${feed.nick}的头像",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
@@ -306,7 +307,7 @@ fun QZoneFeedDetailScreen(
                                         transformation = SurfaceTransformation(transformationSpec),
                                     ) {
                                         AsyncImage(
-                                            model = url,
+                                            model = AvatarUtils.buildFeedImageRequest(context, url),
                                             contentDescription = "动态图片 ${rowIndex * 2 + columnIndex + 1}",
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop,

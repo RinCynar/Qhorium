@@ -51,10 +51,19 @@ fun MainScreen(
     onOpenNotificationCenter: () -> Unit = {},
 ) {
     val pagerState = rememberPagerState(pageCount = { 4 })
+    val context = androidx.compose.ui.platform.LocalContext.current
     var kernelRetryNonce by remember(uin) { mutableIntStateOf(0) }
     var contactsLoaded by remember(uin) { mutableStateOf(false) }
     var qzoneLoaded by remember(uin) { mutableStateOf(false) }
     var kernelReady by remember(uin) { mutableStateOf(false) }
+
+    LaunchedEffect(uin) {
+        if (uin.isNotBlank()) {
+            chatListVm.attachAccount(context, uin)
+            contactsVm.attachAccount(context, uin)
+            qZoneVm.attachAccount(context, uin)
+        }
+    }
 
     LaunchedEffect(pagerState.currentPage) {
         onPageChanged(pagerState.currentPage)
@@ -128,6 +137,7 @@ fun MainScreen(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 0,
         ) { page ->
             when (page) {
                 0 -> ChatListScreen(
@@ -143,6 +153,7 @@ fun MainScreen(
 
                 1 -> ContactsScreen(
                     vm = contactsVm,
+                    uin = uin,
                     onOpenChat = { uid, uin, name ->
                         onOpenChatFromContacts(uid, uin, name, 1)
                     },
@@ -153,6 +164,7 @@ fun MainScreen(
 
                 2 -> QZoneScreen(
                     vm = qZoneVm,
+                    uin = uin,
                     onOpenComposer = onOpenQZoneComposer,
                     onOpenDetail = onOpenQZoneDetail,
                 )

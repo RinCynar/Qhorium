@@ -1,5 +1,6 @@
 package rj.qmce.lite.viewmodel
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import mqq.app.AppRuntime
+import rj.qmce.lite.data.cache.SwrSnapshotManager
 import rj.qmce.lite.data.chat.MediaSdkAccess
 import rj.qmce.lite.kernel.KernelBridge
 import rj.qmce.lite.kernel.SdkCompat
@@ -72,6 +74,28 @@ class ChatListViewModel : ViewModel() {
     private var refreshTimeoutJob: Job? = null
     private val loadRetryLock = Any()
     private var loadRetryJob: Job? = null
+
+    @Volatile
+    private var appContext: Context? = null
+    @Volatile
+    private var accountUin: String = ""
+
+    fun attachAccount(context: Context, uin: String) {
+        this.appContext = context.applicationContext
+        this.accountUin = uin
+        if (uin.isNotBlank()) {
+            scope.launch(Dispatchers.IO) {
+                if (cacheIsEmpty()) {
+                    val diskItems = SwrSnapshotManager.loadChatSnapshot(context, uin)
+                    if (diskItems.isNotEmpty() && cacheIsEmpty()) {
+                        replaceCache(diskItems, "swr-disk")
+                        publishCache("swr-disk")
+                        Log.d(TAG, "ChatListViewModel: instant SWR disk snapshot published (${diskItems.size} items)")
+                    }
+                }
+            }
+        }
+    }
 
     private fun scheduleLoadRetry(runtime: AppRuntime?, reason: String) {
         if (runtime == null || !running) return
@@ -406,6 +430,15 @@ class ChatListViewModel : ViewModel() {
         _contacts.value = ContactsSnapshot(++cacheRevision, visible)
         _statusText.value = "${visible.size} 条会话"
         if (visible.isNotEmpty()) cancelLoadRetry()
+        if (source != "swr-disk" && visible.isNotEmpty()) {
+            val uin = accountUin
+            val ctx = appContext
+            if (uin.isNotBlank() && ctx != null) {
+                scope.launch(Dispatchers.IO) {
+                    SwrSnapshotManager.saveChatSnapshot(ctx, uin, visible)
+                }
+            }
+        }
         PerfTrace.mark("ChatListViewModel", "Published $source contacts=${visible.size} rev=$cacheRevision")
         Log.d(
             TAG,
@@ -427,6 +460,10 @@ class ChatListViewModel : ViewModel() {
             _statusText.value = "Runtime 不可用"
             loading = false
             return
+        }
+        val rUin = runtime.currentAccountUin.orEmpty()
+        if (accountUin.isBlank() && rUin.isNotBlank()) {
+            accountUin = rUin
         }
         running = true
         workerThread = Thread {

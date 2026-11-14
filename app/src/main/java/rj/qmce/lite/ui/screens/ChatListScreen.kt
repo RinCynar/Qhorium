@@ -34,6 +34,7 @@ import kotlinx.coroutines.delay
 import mqq.app.AppRuntime
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.ui.components.ChatItem
+import rj.qmce.lite.ui.components.NetworkErrorBannerCard
 import rj.qmce.lite.ui.wear.QmceEmptyOrErrorState
 import rj.qmce.lite.ui.wear.QmceLoadingState
 import rj.qmce.lite.ui.wear.QmceScreenScaffold
@@ -62,6 +63,12 @@ fun ChatListScreen(
 
     LaunchedEffect(Unit) {
         PerfTrace.mark("ChatListScreen", "ChatListScreen first composed")
+    }
+
+    LaunchedEffect(uin) {
+        if (uin.isNotBlank()) {
+            vm.attachAccount(context, uin)
+        }
     }
 
     // Scroll-gating: freeze ViewModel emission during gesture
@@ -106,6 +113,7 @@ fun ChatListScreen(
     }
 
     val hasContacts = contacts.isNotEmpty()
+    val isNetworkError = statusText.contains("失败") || statusText.contains("不可用")
     Crossfade(
         targetState = hasContacts,
         animationSpec = tween(durationMillis = 200),
@@ -120,6 +128,14 @@ fun ChatListScreen(
                         contentPadding = contentPadding,
                         autoCentering = AutoCenteringParams(itemIndex = 1),
                     ) {
+                        if (isNetworkError) {
+                            item(key = "network-error-banner") {
+                                NetworkErrorBannerCard(
+                                    message = "网络异常，点击重试",
+                                    onRetry = onRetryKernel,
+                                )
+                            }
+                        }
                         item(key = "notification-bell") {
                             Button(
                                 onClick = onOpenNotificationCenter,

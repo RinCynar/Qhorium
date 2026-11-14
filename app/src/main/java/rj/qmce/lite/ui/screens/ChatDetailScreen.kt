@@ -122,6 +122,7 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 import androidx.wear.compose.material3.touchTargetAwareSize
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import rj.qmce.lite.ui.components.AvatarUtils
 import coil3.size.Size
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1753,6 +1754,7 @@ private fun LocalMessageImage(
     ensureCached: () -> Unit,
     onOpen: (File?) -> Unit,
 ) {
+    val context = LocalContext.current
     val localFile = remember(content.localPaths, content.thumbnailPaths, content.sourcePath) {
         LocalMediaResolver.firstAvailable(
             content.localPaths + content.thumbnailPaths + listOfNotNull(
@@ -1785,7 +1787,7 @@ private fun LocalMessageImage(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (localFile != null) {
                     AsyncImage(
-                        model = localFile,
+                        model = AvatarUtils.buildFeedImageRequest(context, localFile),
                         contentDescription = "图片",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
@@ -2375,6 +2377,7 @@ private fun VideoMessageContent(
     ensureCached: () -> Unit,
     onOpenVideo: (VideoPlayback) -> Unit,
 ) {
+    val context = LocalContext.current
     val localFile = remember(content.filePath) {
         LocalMediaResolver.resolveFile(content.filePath)
     }
@@ -2413,7 +2416,7 @@ private fun VideoMessageContent(
         ) {
             if (thumbnail != null) {
                 AsyncImage(
-                    model = thumbnail,
+                    model = AvatarUtils.buildFeedImageRequest(context, thumbnail),
                     contentDescription = "视频封面",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit,
@@ -2498,7 +2501,7 @@ private fun StructuredCardContent(
             previewUrl?.let { url ->
                 Spacer(Modifier.height(7.dp))
                 AsyncImage(
-                    model = url,
+                    model = AvatarUtils.buildFeedImageRequest(context, url),
                     contentDescription = "卡片预览",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2602,6 +2605,7 @@ private fun LocationMessageContent(content: ChatDetailViewModel.MessageContent.L
 
 @Composable
 private fun WalletMessageContent(content: ChatDetailViewModel.MessageContent.Wallet) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2611,7 +2615,7 @@ private fun WalletMessageContent(content: ChatDetailViewModel.MessageContent.Wal
         Row(verticalAlignment = Alignment.CenterVertically) {
             content.iconUrl?.let { iconUrl ->
                 AsyncImage(
-                    model = iconUrl,
+                    model = AvatarUtils.buildAvatarImageRequest(context, iconUrl),
                     contentDescription = null,
                     modifier = Modifier
                         .size(26.dp)

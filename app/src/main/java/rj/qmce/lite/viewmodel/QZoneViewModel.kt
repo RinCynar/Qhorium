@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import mqq.app.AppRuntime
+import rj.qmce.lite.data.cache.SwrSnapshotManager
 import rj.qmce.lite.data.qzone.QZoneFeedRepository
 import rj.qmce.lite.data.qzone.QZoneMediaRepository
 import rj.qmce.lite.data.qzone.QZoneWriteRepository
@@ -147,8 +148,43 @@ class QZoneViewModel : ViewModel() {
     private val qZoneWriteRepository = QZoneWriteRepository()
     private val qZoneMediaRepository = QZoneMediaRepository()
 
+    @Volatile
+    private var appContext: Context? = null
+    @Volatile
+    private var accountUin: String = ""
+
+    fun attachAccount(context: Context, uin: String) {
+        this.appContext = context.applicationContext
+        this.accountUin = uin
+        if (uin.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                if (_feeds.value.isEmpty()) {
+                    val savedFeeds = SwrSnapshotManager.loadQZoneSnapshot(context, uin)
+                    if (savedFeeds.isNotEmpty() && _feeds.value.isEmpty()) {
+                        _feeds.value = savedFeeds
+                        Log.d(TAG, "QZoneViewModel: SWR snapshot loaded instantly (${savedFeeds.size} feeds)")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun persistQZoneSnapshot() {
+        val uin = accountUin.ifBlank { runtime?.currentAccountUin.orEmpty() }
+        val ctx = appContext
+        val feeds = _feeds.value
+        if (uin.isNotBlank() && ctx != null && feeds.isNotEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                SwrSnapshotManager.saveQZoneSnapshot(ctx, uin, feeds)
+            }
+        }
+    }
+
     fun init(rt: AppRuntime?) {
         runtime = rt
+        if (accountUin.isBlank() && rt?.currentAccountUin != null) {
+            accountUin = rt.currentAccountUin
+        }
     }
 
     private fun scheduleFeedRetry(reason: String) {
@@ -664,6 +700,7 @@ class QZoneViewModel : ViewModel() {
             // Real feeds arrived (initial load, retry, or late observer event) — the
             // empty-refresh retry budget no longer applies.
             synchronized(emptyRetryLock) { emptyRefreshAttempts = 0 }
+            persistQZoneSnapshot()
         }
         _statusText.value = if (distinctItems.isEmpty()) "暂无动态" else ""
         if (finishLoading) _loading.value = false

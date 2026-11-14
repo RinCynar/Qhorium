@@ -1,5 +1,6 @@
 package rj.qmce.lite.viewmodel
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import mqq.app.AppRuntime
 import rj.qmce.lite.QmceApplication
+import rj.qmce.lite.data.cache.SwrSnapshotManager
 import rj.qmce.lite.kernel.KernelBridge
 import rj.qmce.lite.kernel.SdkCompat
 import java.util.concurrent.atomic.AtomicInteger
@@ -119,6 +121,45 @@ class ContactsViewModel : ViewModel() {
     private var retryJob: Job? = null
     private var rawCategories: List<UiCategory> = emptyList()
     private var sortMode: String = SettingsViewModel.DEFAULT_CONTACTS_SORT_MODE
+
+    @Volatile
+    private var appContext: Context? = null
+    @Volatile
+    private var accountUin: String = ""
+
+    fun attachAccount(context: Context, uin: String) {
+        this.appContext = context.applicationContext
+        this.accountUin = uin
+        if (uin.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                if (_categories.value.isEmpty() && _groups.value.isEmpty()) {
+                    val (savedCats, savedGroups) = SwrSnapshotManager.loadContactsSnapshot(context, uin)
+                    if (savedCats.isNotEmpty() || savedGroups.isNotEmpty()) {
+                        if (_categories.value.isEmpty()) {
+                            rawCategories = savedCats
+                            _categories.value = applySort(savedCats, sortMode)
+                        }
+                        if (_groups.value.isEmpty()) {
+                            _groups.value = savedGroups
+                        }
+                        Log.d(TAG, "ContactsViewModel: SWR snapshot loaded instantly (${savedCats.size} cats, ${savedGroups.size} groups)")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun persistContactsSnapshot() {
+        val uin = accountUin
+        val ctx = appContext
+        val cats = rawCategories
+        val grps = _groups.value
+        if (uin.isNotBlank() && ctx != null && (cats.isNotEmpty() || grps.isNotEmpty())) {
+            viewModelScope.launch(Dispatchers.IO) {
+                SwrSnapshotManager.saveContactsSnapshot(ctx, uin, cats, grps)
+            }
+        }
+    }
 
     private val groupListenerLock = Any()
     private var groupListenerService: IGroupService? = null
@@ -609,6 +650,7 @@ class ContactsViewModel : ViewModel() {
                     _groupsError.value = "暂无群聊"
                 }
                 Log.d(TAG, "loaded ${groups.size} groups")
+                persistContactsSnapshot()
             }
         } catch (error: Throwable) {
             Log.w(TAG, "load groups failed", error)
@@ -789,6 +831,7 @@ class ContactsViewModel : ViewModel() {
     private fun publishCategories(categories: List<UiCategory>) {
         rawCategories = categories
         _categories.value = applySort(rawCategories, sortMode)
+        persistContactsSnapshot()
     }
 
     private fun applySort(categories: List<UiCategory>, mode: String): List<UiCategory> {
