@@ -31,20 +31,11 @@ import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import coil3.compose.AsyncImage
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import com.tencent.qqnt.kernel.nativeinterface.RecentContactInfo
-import java.io.File
-import java.text.SimpleDateFormat
+import rj.qmce.lite.util.TimeUtils
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 private val UnreadBadgeShape = RoundedCornerShape(50)
-
-private val timeFormatToday = SimpleDateFormat("HH:mm", Locale.getDefault())
-private val timeFormatOther = SimpleDateFormat("MM/dd", Locale.getDefault())
 
 @Volatile
 private var cachedMidnightMillis: Long = 0L
@@ -104,15 +95,11 @@ fun ChatItem(
     }
 
     val avatarModel = remember(contact.chatType, contact.id, contact.avatarPath, contact.avatarUrl) {
-        val rawPath = contact.avatarPath
+        val file = AvatarUtils.resolveLocalAvatarFile(contact.avatarPath)
         when {
-            !rawPath.isNullOrBlank() -> {
-                val clean = rawPath.removePrefix("file://")
-                File(clean)
-            }
+            file != null -> file
             !contact.avatarUrl.isNullOrBlank() -> contact.avatarUrl
-            isGroup -> "https://p.qlogo.cn/gh/${contact.id}/${contact.id}/100"
-            else -> "https://q1.qlogo.cn/g?b=qq&nk=${contact.id}&s=100"
+            else -> AvatarUtils.fallbackAvatarUrl(contact.id.orEmpty(), isGroup)
         }
     }
 
@@ -136,13 +123,7 @@ fun ChatItem(
         icon = {
             val context = LocalContext.current
             val avatarRequest = remember(avatarModel) {
-                ImageRequest.Builder(context)
-                    .data(avatarModel)
-                    .memoryCachePolicy(CachePolicy.ENABLED)
-                    .diskCachePolicy(CachePolicy.ENABLED)
-                    .networkCachePolicy(CachePolicy.ENABLED)
-                    .crossfade(false)
-                    .build()
+                AvatarUtils.buildAvatarImageRequest(context, avatarModel)
             }
             Box {
                 AsyncImage(
@@ -245,8 +226,5 @@ private fun formatTime(msgTime: Long): String {
     val timeMs = msgTime * 1000L
     val midnight = getMidnightMillis()
     val isToday = timeMs >= midnight && timeMs < midnight + 86_400_000L
-    val formatter = if (isToday) timeFormatToday else timeFormatOther
-    return synchronized(formatter) {
-        formatter.format(Date(timeMs))
-    }
+    return if (isToday) TimeUtils.formatHourMinute(msgTime) else TimeUtils.formatMonthDay(msgTime)
 }

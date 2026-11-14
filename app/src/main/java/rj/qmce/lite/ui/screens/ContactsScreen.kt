@@ -1,6 +1,7 @@
 package rj.qmce.lite.ui.screens
 
 import androidx.activity.compose.BackHandler
+import rj.qmce.lite.ui.components.AvatarUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -216,11 +217,7 @@ fun ContactsScreen(
                             }
                             category.buddies.forEach { buddy ->
                                 item(key = "buddy:${buddy.categoryId}:${buddy.uid}") {
-                                    val avatarModel = buddy.avatarPath
-                                        .removePrefix("file://")
-                                        .takeIf { it.isNotBlank() }
-                                        ?.let(::File)
-                                        ?.takeIf(File::isFile)
+                                    val avatarModel = AvatarUtils.resolveLocalAvatarFile(buddy.avatarPath)
                                     OfficialReportTargetBox(
                                         key = "contact:${buddy.categoryId}:${buddy.uid}",
                                         modifier = Modifier
@@ -506,11 +503,7 @@ private fun ContactSearchScreen(
                     when (result) {
                         is ContactSearchResult.Buddy -> {
                             val buddy = result.buddy
-                            val avatarModel = buddy.avatarPath
-                                .removePrefix("file://")
-                                .takeIf { it.isNotBlank() }
-                                ?.let(::File)
-                                ?.takeIf(File::isFile)
+                            val avatarModel = AvatarUtils.resolveLocalAvatarFile(buddy.avatarPath)
                             OfficialReportTargetBox(
                                 key = result.key,
                                 modifier = Modifier
@@ -643,13 +636,7 @@ private fun ContactAvatar(
     if (model != null) {
         val context = androidx.compose.ui.platform.LocalContext.current
         val request = remember(model) {
-            coil3.request.ImageRequest.Builder(context)
-                .data(model)
-                .memoryCachePolicy(coil3.request.CachePolicy.ENABLED)
-                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
-                .networkCachePolicy(coil3.request.CachePolicy.ENABLED)
-                .crossfade(false)
-                .build()
+            AvatarUtils.buildAvatarImageRequest(context, model)
         }
         AsyncImage(
             model = request,

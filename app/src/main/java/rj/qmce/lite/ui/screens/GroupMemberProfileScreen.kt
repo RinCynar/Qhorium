@@ -64,10 +64,7 @@ fun GroupMemberProfileScreen(
         mutableStateOf<AvatarPreviewTarget?>(null)
     }
     var saveLabel by remember { mutableStateOf("保存") }
-    val localAvatar = member.avatarPath.removePrefix("file://")
-        .takeIf { it.isNotBlank() }
-        ?.let(::File)
-        ?.takeIf(File::isFile)
+    val localAvatar = rj.qmce.lite.ui.components.AvatarUtils.resolveLocalAvatarFile(member.avatarPath)
     val avatarUrls = remember(member.uin) {
         member.uin.takeIf { it > 0L }?.let { uin ->
             listOf(

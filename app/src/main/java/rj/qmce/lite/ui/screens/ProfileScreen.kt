@@ -64,10 +64,7 @@ fun ProfileScreen(
     val mediaStoreSaver = remember { MediaStoreSaver() }
     var avatarTarget by remember(buddy.uid, buddy.uin) { mutableStateOf<AvatarPreviewTarget?>(null) }
     var saveLabel by remember { mutableStateOf("保存") }
-    val localAvatar = buddy.avatarPath.removePrefix("file://")
-        .takeIf { it.isNotBlank() }
-        ?.let(::File)
-        ?.takeIf(File::isFile)
+    val localAvatar = rj.qmce.lite.ui.components.AvatarUtils.resolveLocalAvatarFile(buddy.avatarPath)
     val avatarModel: Any? = localAvatar ?: buddy.avatarUrls.firstOrNull()
     val avatarSource = localAvatar?.absolutePath ?: buddy.avatarUrls.firstOrNull()
     val displayName = buddy.displayName()

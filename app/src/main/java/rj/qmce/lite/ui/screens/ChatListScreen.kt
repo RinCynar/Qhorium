@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -103,8 +105,13 @@ fun ChatListScreen(
         }
     }
 
-    when {
-        contacts.isNotEmpty() -> {
+    val hasContacts = contacts.isNotEmpty()
+    Crossfade(
+        targetState = hasContacts,
+        animationSpec = tween(durationMillis = 200),
+        label = "ChatListTransition",
+    ) { showList ->
+        if (showList) {
             val listBody: @Composable BoxScope.(androidx.compose.foundation.layout.PaddingValues) -> Unit =
                 { contentPadding ->
                     ScalingLazyColumn(
@@ -163,27 +170,29 @@ fun ChatListScreen(
                 scrollState = listState,
                 content = listBody,
             )
-        }
+        } else {
+            when {
+                statusText.contains("失败") || statusText.contains("不可用") -> {
+                    QmceEmptyOrErrorState(
+                        message = statusText.ifBlank { "会话加载失败" },
+                        actionLabel = "重试",
+                        onAction = onRetryKernel,
+                        isError = true,
+                    )
+                }
 
-        statusText.contains("失败") || statusText.contains("不可用") -> {
-            QmceEmptyOrErrorState(
-                message = statusText.ifBlank { "会话加载失败" },
-                actionLabel = "重试",
-                onAction = onRetryKernel,
-                isError = true,
-            )
-        }
+                statusText.isBlank() || statusText.contains("加载") || statusText.contains("等待") || statusText.contains("同步") -> {
+                    QmceLoadingState(message = "")
+                }
 
-        statusText.isBlank() || statusText.contains("加载") || statusText.contains("等待") -> {
-            QmceLoadingState(message = statusText.ifBlank { "加载会话…" })
-        }
-
-        else -> {
-            QmceEmptyOrErrorState(
-                message = statusText.ifBlank { "暂无会话" },
-                actionLabel = "刷新",
-                onAction = { vm.refreshContacts() },
-            )
+                else -> {
+                    QmceEmptyOrErrorState(
+                        message = statusText.ifBlank { "暂无会话" },
+                        actionLabel = "刷新",
+                        onAction = { vm.refreshContacts() },
+                    )
+                }
+            }
         }
     }
 }

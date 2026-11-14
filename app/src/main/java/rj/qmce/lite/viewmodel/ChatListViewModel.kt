@@ -33,11 +33,7 @@ class ChatListViewModel : ViewModel() {
     companion object {
         private const val TAG = "QMCE"
         private const val LIST_TYPE = 1 // main chat list
-        private const val TARGET_PEER_UID = "749317302"
         private const val PULL_REFRESH_TIMEOUT_MS = 10_000L
-        private val DEBUG_CONTACT_NAMES = listOf(
-            "AgentRouter", "简幻云", "Atri Shop", "明日方舟", "终末地", "绝区零国际服交流群"
-        )
     }
 
     data class ContactsSnapshot(
@@ -174,40 +170,6 @@ class ChatListViewModel : ViewModel() {
         }
     }
 
-    private fun isDebugContact(contact: RecentContactInfo): Boolean {
-        val name = contact.peerName.orEmpty()
-        val remark = contact.remark.orEmpty()
-        return DEBUG_CONTACT_NAMES.any { keyword ->
-            name.contains(keyword) || remark.contains(
-                keyword
-            )
-        }
-    }
-
-    private fun formatAbstract(contact: RecentContactInfo?): String =
-        contact?.abstractContent?.joinToString(prefix = "[", postfix = "]") { element ->
-            "type=${element.elementType},sub=${element.elementSubType}," +
-                    "content=${element.content},custom=${element.customContent}," +
-                    "emojiId=${element.emojiId},emojiType=${element.emojiType}"
-        }.orEmpty()
-
-    private fun logDebugContacts(source: String, contacts: Collection<RecentContactInfo>?) {
-        if (!rj.qmce.lite.BuildConfig.DEBUG) return
-        contacts.orEmpty()
-            .filter(::isDebugContact)
-            .forEach { contact ->
-                Log.d(
-                    TAG,
-                    "recentTrace[$source]: id=${contact.id}, contactId=${contact.contactId}, " +
-                            "peerUid=${contact.peerUid}, peerUin=${contact.peerUin}, " +
-                            "name=${contact.peerName}, remark=${contact.remark}, " +
-                            "msgTime=${contact.msgTime}, sortField=${contact.sortField}, " +
-                            "msgSeq=${contact.msgSeq}, unread=${contact.unreadCnt}, " +
-                            "abstract=${formatAbstract(contact)}"
-                )
-            }
-    }
-
     init {
         Log.d(TAG, "chatListVm[$instanceId]: created")
         scope.launch {
@@ -286,26 +248,7 @@ class ChatListViewModel : ViewModel() {
             val previous = contactsById[incoming.contactId]
             val hasAbstract = incoming.abstractContent?.any { !it.content.isNullOrBlank() } == true
             if (!hasAbstract && previous?.abstractContent != null) {
-                if (isDebugContact(incoming)) {
-                    Log.d(
-                        TAG,
-                        "recentCache[v2]: preserving previous abstract name=${incoming.peerName}, " +
-                                "time=${previous.msgTime}->${incoming.msgTime}, seq=${previous.msgSeq}->${incoming.msgSeq}, " +
-                                "incoming=${formatAbstract(incoming)}, previous=${
-                                    formatAbstract(
-                                        previous
-                                    )
-                                }"
-                    )
-                }
                 incoming.abstractContent = previous.abstractContent
-            } else if (isDebugContact(incoming)) {
-                Log.d(
-                    TAG,
-                    "recentCache[v2]: accepting native abstract name=${incoming.peerName}, " +
-                            "time=${previous?.msgTime}->${incoming.msgTime}, seq=${previous?.msgSeq}->${incoming.msgSeq}, " +
-                            "incoming=${formatAbstract(incoming)}"
-                )
             }
             contactsById[incoming.contactId] = incoming
         }
@@ -323,18 +266,6 @@ class ChatListViewModel : ViewModel() {
     }
 
     private fun cacheIsEmpty(): Boolean = synchronized(cacheLock) { contactsById.isEmpty() }
-
-    private fun logTargetMessages(callback: String, messages: List<MsgRecord>?) {
-        messages.orEmpty()
-            .filter { it.peerUid == TARGET_PEER_UID }
-            .forEach { message ->
-                Log.d(
-                    TAG,
-                    "syncProbe: $callback peer=${message.peerUid}, time=${message.msgTime}, " +
-                            "seq=${message.msgSeq}, id=${message.msgId}"
-                )
-            }
-    }
 
     private fun installSyncProbe(
         msgService: com.tencent.qqnt.kernel.api.IMsgService,
@@ -355,44 +286,6 @@ class ChatListViewModel : ViewModel() {
                 "onNtMsgSyncEnd" -> {
                     Log.d(TAG, "syncProbe: onNtMsgSyncEnd")
                     finishActivePullRefresh("nt-sync-end")
-                    scope.launch {
-                        delay(2_000)
-                        val target = runCatching {
-                            SdkCompat.getRecentContactFromCache(recentService, LIST_TYPE)
-                        }.getOrNull()
-                            ?.firstOrNull { it.peerUid == TARGET_PEER_UID }
-                        target?.let { logDebugContacts("sync-end+2s", listOf(it)) }
-                    }
-                    null
-                }
-
-                "onRecvMsg" -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val messages = args?.getOrNull(0) as? List<MsgRecord>
-                    logTargetMessages("onRecvMsg", messages)
-                    null
-                }
-
-                "onMsgInfoListAdd", "onMsgInfoListUpdate" -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val messages = args?.getOrNull(0) as? List<MsgRecord>
-                    logTargetMessages(method.name, messages)
-                    null
-                }
-
-                "onMsgAbstractUpdate" -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val abstracts =
-                        args?.getOrNull(0) as? List<MsgAbstract>
-                    abstracts.orEmpty()
-                        .filter { it.peer?.peerUid == TARGET_PEER_UID }
-                        .forEach { abstract ->
-                            Log.d(
-                                TAG,
-                                "syncProbe: onMsgAbstractUpdate peer=${abstract.peer?.peerUid}, " +
-                                        "time=${abstract.abstractTime}, seq=${abstract.msgSeq}"
-                            )
-                        }
                     null
                 }
 
@@ -484,18 +377,23 @@ class ChatListViewModel : ViewModel() {
         }
 
         val visible = synchronized(cacheLock) {
-            val ordered = ArrayList<RecentContactInfo>(contactsById.size)
-            val emittedIds = HashSet<Long>()
-            sortedContactIds.forEach { id ->
-                contactsById[id]?.let { contact ->
-                    ordered += contact
-                    emittedIds += id
+            val size = contactsById.size
+            val ordered = ArrayList<RecentContactInfo>(size)
+            val emittedIds = HashSet<Long>(size)
+            for (i in sortedContactIds.indices) {
+                val id = sortedContactIds[i]
+                val contact = contactsById[id]
+                if (contact != null) {
+                    ordered.add(contact)
+                    emittedIds.add(id)
                 }
             }
-            contactsById.values
-                .filter { it.contactId !in emittedIds }
-                .sortedWith(contactComparator())
-                .forEach(ordered::add)
+            if (ordered.size < size) {
+                contactsById.values
+                    .filter { it.contactId !in emittedIds }
+                    .sortedWith(contactComparator())
+                    .forEach(ordered::add)
+            }
             ordered
         }
 
@@ -505,7 +403,6 @@ class ChatListViewModel : ViewModel() {
         }
         lastPublishedList = visible
 
-        logDebugContacts("publish-$source", visible)
         _contacts.value = ContactsSnapshot(++cacheRevision, visible)
         _statusText.value = "${visible.size} 条会话"
         if (visible.isNotEmpty()) cancelLoadRetry()
@@ -596,7 +493,6 @@ class ChatListViewModel : ViewModel() {
                 }.getOrNull()
                 Log.d(TAG, "chatPoll: cached(getRecentContactFromCache(1))=${cached?.size}")
                 if (cached != null && cached.isNotEmpty()) {
-                    logDebugContacts("cached", cached)
                     replaceCache(cached, "cached")
                     patchSentMessages()
                     publishCache("cached")
@@ -609,7 +505,6 @@ class ChatListViewModel : ViewModel() {
                         TAG,
                         "v2Listener: type=${info.notificationType}, changed=${info.changedList?.size}, sorted=${info.sortedContactList?.size}, listType=${info.listType}"
                     )
-                    logDebugContacts("v2-changed(type=${info.notificationType})", info.changedList)
                     runOnRecentThread {
                         applyRecentChange(info)
                         patchSentMessages()
@@ -732,7 +627,6 @@ class ChatListViewModel : ViewModel() {
                             if (cacheIsEmpty() && code == 0 && info != null) {
                                 val contacts = info.changedList
                                 if (contacts != null && contacts.isNotEmpty()) {
-                                    logDebugContacts("snapshot-initial", contacts)
                                     replaceCache(
                                         contacts,
                                         "snapshot-initial",
@@ -764,7 +658,6 @@ class ChatListViewModel : ViewModel() {
                                     "chatPoll: snapShot[$i] code=$code, changed=${info?.changedList?.size}, sorted=${info?.sortedContactList?.size}"
                                 )
                                 if (cacheIsEmpty() && code == 0 && info?.changedList != null && info.changedList.isNotEmpty()) {
-                                    logDebugContacts("snapshot-poll[$i]", info.changedList)
                                     replaceCache(
                                         info.changedList,
                                         "snapshot-poll[$i]",

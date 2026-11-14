@@ -52,9 +52,7 @@ import coil3.compose.AsyncImage
 import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
 import rj.qmce.lite.viewmodel.QZoneViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import rj.qmce.lite.util.TimeUtils
 
 @Composable
 fun QZoneScreen(
@@ -391,7 +389,7 @@ private fun FeedPreviewCard(
 }
 
 internal fun feedTimeText(time: Long): String =
-    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(time * 1000))
+    TimeUtils.formatMonthDayHourMinute(time).ifBlank { "刚刚" }
 
 @Composable
 internal fun ForwardFeedContent(

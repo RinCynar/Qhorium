@@ -144,6 +144,7 @@ import rj.qmce.lite.data.reporting.OfficialReportBridge
 import rj.qmce.lite.data.reporting.OfficialReportTargetBox
 import rj.qmce.lite.ui.theme.LocalQmceAdaptive
 import rj.qmce.lite.viewmodel.ChatDetailViewModel
+import rj.qmce.lite.util.TimeUtils
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -1138,8 +1139,7 @@ private fun List<ChatDetailViewModel.UiMsg>.toTimelineItems(): List<ChatTimeline
         } else {
             val prev = previousMessage
             if (prev != null && (message.time - prev.time) >= TimeDividerWindowMillis) {
-                val timeLabel = SimpleDateFormat("HH:mm", Locale.getDefault())
-                    .format(java.util.Date(message.time * 1000))
+                val timeLabel = TimeUtils.formatHourMinute(message.time)
                 add(ChatTimelineItem.TimeDivider(timeLabel, "time:${message.time}"))
             }
         }
@@ -2863,11 +2863,8 @@ private fun ChatDateDivider(
     }
 }
 
-private fun Long.toDayKey(): String =
-    SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date(this * 1000))
+private fun Long.toDayKey(): String = TimeUtils.toDayKey(this)
 
-private fun formatChatDate(time: Long): String =
-    SimpleDateFormat("M月d日", Locale.getDefault()).format(Date(time * 1000))
+private fun formatChatDate(time: Long): String = TimeUtils.formatChatDate(time)
 
-private fun formatMsgTime(time: Long): String =
-    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time * 1000))
+private fun formatMsgTime(time: Long): String = TimeUtils.formatHourMinute(time)

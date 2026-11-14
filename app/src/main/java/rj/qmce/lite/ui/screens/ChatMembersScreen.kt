@@ -232,10 +232,7 @@ private fun GroupMemberRepository.Member.roleLabel(): String = when (role.upperc
 
 @Composable
 private fun MemberAvatar(member: GroupMemberRepository.Member) {
-    val local = member.avatarPath.removePrefix("file://")
-        .takeIf { it.isNotBlank() }
-        ?.let(::File)
-        ?.takeIf(File::isFile)
+    val local = rj.qmce.lite.ui.components.AvatarUtils.resolveLocalAvatarFile(member.avatarPath)
     val model: Any? = local ?: member.uin.takeIf { it > 0L }?.let {
         "https://q1.qlogo.cn/g?b=qq&nk=$it&s=100"
     }

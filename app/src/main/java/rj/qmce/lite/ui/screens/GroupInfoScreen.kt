@@ -54,9 +54,8 @@ import rj.qmce.lite.data.media.MediaStoreSaver
 import rj.qmce.lite.ui.wear.QmceListHeader
 import rj.qmce.lite.viewmodel.GroupInfoState
 import rj.qmce.lite.viewmodel.GroupInfoViewModel
+import rj.qmce.lite.util.TimeUtils
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -384,5 +383,5 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
 }
 
 private fun bulletinTimeText(seconds: Int): String = runCatching {
-    SimpleDateFormat("MM-dd HH:mm", Locale.ROOT).format(Date(seconds.toLong() * 1000L))
+    TimeUtils.formatMonthDayHourMinute(seconds.toLong()).ifBlank { "未知时间" }
 }.getOrDefault("未知时间")

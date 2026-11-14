@@ -45,7 +45,6 @@ object QmceMessageNotifier {
     const val EXTRA_PEER_NICKNAME = "PEER_NICKNAME"
     const val EXTRA_OPEN_CHAT = "open_chatfragment"
     const val EXTRA_OPEN_NOTIFY_CENTER = "open_notification_center"
-    const val EXTRA_OPEN_TILE_GROUP_PICKER = "open_tile_group_picker"
 
     fun peerKey(contact: RecentContactInfo): String =
         contact.peerUid?.takeIf { it.isNotBlank() }
@@ -251,7 +250,6 @@ object QmceMessageNotifier {
                 postNow(context, contact, peer, title, text, visuals, tag, id)
             }
         }
-        QmceWearSurfaces.requestDataRefresh(context)
     }
 
     private fun postNow(

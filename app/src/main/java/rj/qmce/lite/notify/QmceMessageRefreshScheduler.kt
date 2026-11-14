@@ -86,7 +86,6 @@ object QmceMessageRefreshScheduler {
                 },
             )
             KernelBridge.getMsgService()?.startMsgSync()
-            QmceWearSurfaces.requestDataRefresh(context)
             Log.d(TAG, "lightweight recent refresh")
         }.onFailure { Log.w(TAG, "refresh failed", it) }
     }

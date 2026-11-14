@@ -28,7 +28,7 @@ import rj.qmce.lite.ui.theme.LocalQmceAdaptive
 /** Centered loading state for Wear list / detail screens. */
 @Composable
 fun QmceLoadingState(
-    message: String,
+    message: String = "",
     modifier: Modifier = Modifier,
 ) {
     QmceScreenScaffold { contentPadding ->
@@ -46,12 +46,14 @@ fun QmceLoadingState(
                     modifier = Modifier.size(28.dp),
                     strokeWidth = 3.dp,
                 )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                if (message.isNotBlank()) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
             }
         }
     }

@@ -441,14 +441,10 @@ private fun WearApp() {
             if (isLoggedIn) {
                 val navController = checkNotNull(appNavController)
                 val chatDetailVm: ChatDetailViewModel = viewModel()
-                val chatSettingsVm: ChatSettingsViewModel = viewModel()
-                val groupInfoVm: GroupInfoViewModel = viewModel()
-                val groupManagementVm: GroupManagementViewModel = viewModel()
                 val chatListVm: ChatListViewModel = viewModel()
                 val contactsVm: ContactsViewModel = viewModel()
                 val qZoneVm: QZoneViewModel = viewModel()
                 val myVm: MyViewModel = viewModel()
-                val storageVm: StorageViewModel = viewModel()
                 var mainPage by remember { mutableStateOf(0) }
                 var nestedOfficialPageId by remember { mutableStateOf<String?>(null) }
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -695,12 +691,6 @@ private fun WearApp() {
                                     }
                                 },
                                 onOpenChatSettings = {
-                                    if (contact.chatType == 2) {
-                                        groupManagementVm.load(
-                                            contact.peerUin.takeIf { it > 0L }
-                                                ?: contact.id?.toLongOrNull() ?: 0L,
-                                        )
-                                    }
                                     navController.navigate("chatSettings") {
                                         launchSingleTop = true
                                     }
@@ -774,6 +764,7 @@ private fun WearApp() {
                         )
                     }
                     composable("groupInfo") {
+                        val groupInfoVm: GroupInfoViewModel = viewModel()
                         val contact = selectedContact
                         if (contact != null && contact.chatType == 2) {
                             val groupCode = contact.peerUin.takeIf { it > 0L }
@@ -830,6 +821,7 @@ private fun WearApp() {
                         }
                     }
                     composable("groupManagement") {
+                        val groupManagementVm: GroupManagementViewModel = viewModel()
                         val contact = selectedContact
                         if (contact != null && contact.chatType == 2) {
                             GroupManagementScreen(
@@ -841,12 +833,19 @@ private fun WearApp() {
                         }
                     }
                     composable("chatSettings") {
+                        val chatSettingsVm: ChatSettingsViewModel = viewModel()
+                        val groupManagementVm: GroupManagementViewModel = viewModel()
                         val groupManagementState by groupManagementVm.state.collectAsState()
                         val contact = selectedContact
                         if (contact != null) {
                             val peerUin =
                                 contact.peerUin.takeIf { it > 0L } ?: contact.id?.toLongOrNull()
                                 ?: 0L
+                            LaunchedEffect(contact) {
+                                if (contact.chatType == 2) {
+                                    groupManagementVm.load(peerUin)
+                                }
+                            }
                             ChatSettingsScreen(
                                 contact = contact,
                                 peerUid = contact.peerUid.orEmpty(),
@@ -931,6 +930,7 @@ private fun WearApp() {
                         )
                     }
                     composable("dataSettings") {
+                        val storageVm: StorageViewModel = viewModel(context as androidx.activity.ComponentActivity)
                         DataSettingsScreen(
                             runtime = runtime,
                             chatListVm = chatListVm,
@@ -1091,6 +1091,7 @@ private fun WearApp() {
                         }
                     }
                     composable("settingsClearChatCache") {
+                        val storageVm: StorageViewModel = viewModel(context as androidx.activity.ComponentActivity)
                         SettingsClearChatCacheScreen(
                             onConfirm = {
                                 storageVm.clearAllCache()
@@ -1301,12 +1302,6 @@ private fun SplashScreen(restoringLogin: Boolean = false) {
             androidx.wear.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.size(36.dp),
                 strokeWidth = 3.dp,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            androidx.wear.compose.material3.Text(
-                text = if (restoringLogin) "正在恢复登录…" else "正在启动…",
-                style = androidx.wear.compose.material3.MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
             )
         }
     }

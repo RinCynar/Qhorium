@@ -275,10 +275,7 @@ private fun ChatInfoAvatar(
         }
     }
     var remoteIndex by remember(fallbackUrls) { mutableIntStateOf(0) }
-    val local = avatarPath.removePrefix("file://")
-        .takeIf { it.isNotBlank() }
-        ?.let(::File)
-        ?.takeIf(File::isFile)
+    val local = rj.qmce.lite.ui.components.AvatarUtils.resolveLocalAvatarFile(avatarPath)
     val model: Any? = local ?: fallbackUrls.getOrNull(remoteIndex)
     val source = local?.absolutePath ?: fallbackUrls.getOrNull(remoteIndex)
 
